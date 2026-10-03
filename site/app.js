@@ -320,7 +320,7 @@ function attInner(m) {
   if (entering || editing === m.i) {
     const who = entering ? whoHtml(m) : "";
     return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, name, long]) =>
-      `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>${who ? `<div class="who" aria-live="polite">${who}</div>` : ""}`;
+      `<button class="att-${k}" data-att="${k}" data-g="${GLYPH[k]}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>${who ? `<div class="who" aria-live="polite">${who}</div>` : ""}`;
   }
   const text = { yes: "Je komt", maybe: "Misschien", no: "Je komt niet" }[cur];
   const line = cur
@@ -328,7 +328,7 @@ function attInner(m) {
     : `Aanwezig? <span class="cta">Geef door</span>`;
   const aria = cur ? `Aanwezigheid: ${esc(text.toLowerCase())}. Tik om te wijzigen` : `Aanwezigheid doorgeven voor ${esc(m.t)}`;
   const who = whoHtml(m);
-  return `<button class="att-now${cur ? " set" : ""}" data-edit="${esc(m.i)}" aria-label="${aria}">${line}</button>${who ? `<div class="who" aria-live="polite">${who}</div>` : ""}`;
+  return `<button class="att-now${cur ? " set att-" + cur : ""}" data-edit="${esc(m.i)}" aria-label="${aria}">${line}</button>${who ? `<div class="who" aria-live="polite">${who}</div>` : ""}`;
 }
 
 function attendanceHtml(m) {
