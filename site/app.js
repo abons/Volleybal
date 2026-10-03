@@ -435,5 +435,19 @@ addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEven
 addEventListener("appinstalled", () => { installBox.hidden = true; toast("Geïnstalleerd"); });
 showInstall();
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+// Nieuwe versie van de app automatisch oppakken: zodra een nieuwe service worker het overneemt, laden we de pagina één keer opnieuw.
+// (Niet bij de allereerste installatie: dan is er nog geen oude versie om te vervangen.)
+if ("serviceWorker" in navigator) {
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!hadController || reloading) return;
+    reloading = true;
+    location.reload();
+  });
+  navigator.serviceWorker.register("sw.js").then((reg) => {
+    // Een geopende app (bijvoorbeeld vanaf het beginscherm) controleert op een nieuwe versie zodra je terugkomt.
+    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") reg.update().catch(() => {}); });
+  }).catch(() => {});
+}
 main();
