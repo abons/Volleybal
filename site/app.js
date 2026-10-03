@@ -196,7 +196,7 @@ function matchRow(m, team) {
     <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}${isToday(d) ? " today" : ""}">
       <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what">
-        <div class="vs">${opp ? `<span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span><span>${esc(opp)}</span>` : `<span>${esc(m.t)}</span>`}</div>
+        <div class="vs">${opp ? `${isHome ? "" : `<span class="tag away">uit</span>`}<span>${esc(opp)}</span>` : `<span>${esc(m.t)}</span>`}</div>
         ${place}
       </div>
       <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda">${ico.calPlus}</button>
@@ -216,7 +216,7 @@ function renderTeam() {
           <p class="muted">${team.club ? `<button class="link inline" id="club" title="Alle thuiswedstrijden van ${esc(team.club)}">${esc(team.club)}</button>` : ""}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand).replace(/ (\S+)$/, "&nbsp;$1") : ""}</p>
         </div>
         <div class="head-btns">
-          <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${ico.star(isFav)}</button>
+          <button class="star" id="fav" aria-pressed="${isFav}" aria-label="Mijn team" title="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${ico.star(isFav)}</button>
         </div>
       </div>
       <div class="actions">
@@ -251,23 +251,25 @@ function renderTeam() {
     save();
     renderTeam();
     $("#fav").focus();
-    toast(isFav ? "Verwijderd uit je teams" : "Team bewaard op dit toestel");
+    toast(isFav ? "Verwijderd uit je teams." : "Opgeslagen als je team. Tik nogmaals op de ster om te verwijderen.");
   });
   $("#club")?.addEventListener("click", () => { state.club = team.club; render(); });
   $("#change").addEventListener("click", () => { state.searching = true; state.query = ""; render(); });
   const dlg = $("#agenda-dlg");
-  $("#agenda-open").addEventListener("click", () => dlg.showModal());
-  $("#agenda-close").addEventListener("click", () => dlg.close());
-  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); }); // tik naast het blad
-  $("#subscribe").addEventListener("click", () => setTimeout(() => dlg.close(), 300));
+  // Oudere browsers kennen <dialog> niet: dan tonen we het blad gewoon met het open-attribuut.
+  const closeDlg = () => (dlg.close ? dlg.close() : dlg.removeAttribute("open"));
+  $("#agenda-open").addEventListener("click", () => (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", "")));
+  $("#agenda-close").addEventListener("click", closeDlg);
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) closeDlg(); }); // tik naast het blad
+  $("#subscribe").addEventListener("click", () => setTimeout(closeDlg, 300));
   $("#all").addEventListener("click", () => {
-    dlg.close();
+    closeDlg();
     const up = upcomingOf(state.matches || []);
     download(`${slug(team.naam)}.ics`, calendar(`Wedstrijden ${team.naam}`, up));
     toast(`${up.length} komende wedstrijden. Open het bestand om ze toe te voegen.`);
   });
   $("#copy").addEventListener("click", async () => {
-    dlg.close();
+    closeDlg();
     const link = teamUrls(state.active).https;
     try { await navigator.clipboard.writeText(link); toast("Link gekopieerd. Plak hem in je agenda-app."); }
     catch { prompt("Kopieer deze link en plak hem in je agenda-app:", link); }
@@ -334,7 +336,7 @@ function resultRow(r, team) {
     <div class="match ${won ? "win" : "loss"}">
       ${when}
       <div class="what">
-        <div class="vs"><span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span><span>${esc(opp)}</span></div>
+        <div class="vs">${isHome ? "" : `<span class="tag away">uit</span>`}<span>${esc(opp)}</span></div>
         <div class="where sets">${esc(sets)}</div>
       </div>
       <div class="score ${won ? "win" : "loss"}">
@@ -356,18 +358,20 @@ function resultsHtml(team) {
 function standHtml(team) {
   if (state.matches === null && !state.error) return `<section class="card"><p class="muted">Laden…</p></section>`;
   if (state.error) return `<section class="card">${problem()}</section>`;
-  if (!state.poules.length) return `<section class="card"><p class="muted">Er is nog geen stand voor dit team.</p></section>`;
+  if (!state.poules.length) return `<section class="card"><p class="muted">Er is nog geen stand: de competitie is nog niet gestart.</p></section>`;
   if (state.tables === null) return `<section class="card"><p class="muted">Stand laden…</p></section>`;
+  if (!state.tables.some(Boolean)) return `<section class="card"><p class="muted">De stand is nu niet beschikbaar. Probeer het later opnieuw.</p></section>`;
   return state.tables.filter(Boolean).map((t) => `
     <section class="card">
       <h3>${t.cup && !/^beker/i.test(t.n) ? "Beker · " : ""}${esc(t.n)}</h3>
-      <div class="table-wrap">
+      <div class="table-wrap" role="region" tabindex="0" aria-label="Stand ${esc(t.n)}">
         <table class="stand">
           <caption class="sr-only">Stand ${esc(t.n)}</caption>
-          <thead><tr><th scope="col">#</th><th scope="col">Team</th><th scope="col"><abbr title="Gespeeld">Gesp.</abbr></th><th scope="col"><abbr title="Punten">Pnt</abbr></th><th scope="col">Sets</th></tr></thead>
+          <thead><tr><th scope="col">#</th><th scope="col">Team</th><th scope="col">Gesp.</th><th scope="col">Pnt</th><th scope="col">Sets</th></tr></thead>
           <tbody>${t.r.map(([pos, key, naam, gs, pt, sv, st]) => `<tr${key === state.active ? ' class="me" aria-current="true"' : ""}><td>${Number(pos) || "–"}</td><td>${esc(naam)}</td><td>${Number(gs)}</td><td>${Number(pt)}</td><td>${Number(sv)}-${Number(st)}</td></tr>`).join("")}</tbody>
         </table>
       </div>
+      <p class="muted legend">Gesp. = gespeeld · Pnt = punten · Sets = gewonnen-verloren</p>
     </section>`).join("");
 }
 
@@ -398,7 +402,7 @@ async function loadMatches() {
       state.poules = j.p || [];
     }
   } catch {
-    state.error = "Geen verbinding, en dit team is nog niet eerder bekeken.";
+    state.error = "Geen internet, en dit team heb je nog niet eerder geopend. Probeer het opnieuw zodra je weer verbinding hebt.";
   }
   if (state.active === key && !state.searching) renderMatches();
 }
@@ -411,16 +415,16 @@ async function renderClub() {
   const teams = teamList.filter((t) => t.club === name);
   view.innerHTML = `
     <section class="card">
+      <button class="link back" id="club-back">‹ Terug naar ${esc(teamIndex.get(state.active)?.naam || "mijn team")}</button>
       <div class="team-head">
         <div>
           <h2 id="team-name" tabindex="-1">${esc(name)}</h2>
           <p class="muted">Thuiswedstrijden van ${teams.length} ${teams.length === 1 ? "team" : "teams"}</p>
         </div>
-        <div class="head-btns"><button class="star" id="club-back" title="Terug naar team" aria-label="Terug naar team">${ico.close}</button></div>
       </div>
     </section>
     <section class="card" id="club-matches"><p class="muted">Laden…</p></section>`;
-  $("#club-back").addEventListener("click", () => { state.club = null; render(); });
+  $("#club-back").addEventListener("click", () => { state.club = null; render(); $("#club")?.focus(); });
   $("#team-name").focus({ preventScroll: true });
   const seen = new Map();
   let failed = 0;
@@ -451,7 +455,7 @@ async function renderClub() {
   }).join("");
   const box = $("#club-matches");
   box.innerHTML = `<h3>Komende thuiswedstrijden</h3>
-    ${failed ? `<p class="notice">Van ${failed} ${failed === 1 ? "team" : "teams"} kon het programma niet geladen worden.</p>` : ""}
+    ${failed ? `<p class="notice">Het programma van ${failed} ${failed === 1 ? "team" : "teams"} is nu niet beschikbaar. Probeer het later opnieuw.</p>` : ""}
     ${list.length ? rows : failed ? "" : `<p class="muted">Geen komende thuiswedstrijden.</p>`}`;
   box.addEventListener("click", (e) => {
     const b = e.target.closest("[data-add]");
@@ -468,10 +472,12 @@ function selectTeam(key, makeFav = true) {
   state.searching = false;
   state.query = "";
   state.tab = "programma";
-  if (makeFav && !state.favs.includes(key)) state.favs.push(key); // gekozen team wordt je favoriet
+  const added = makeFav && !state.favs.includes(key);
+  if (added) state.favs.push(key); // gekozen team wordt je favoriet
   save();
   render();
   $("#team-name")?.focus({ preventScroll: true });
+  if (added) toast("Opgeslagen als je team (ster). Tik op de ster om te verwijderen.");
 }
 
 function render() {
