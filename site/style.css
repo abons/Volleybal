@@ -210,3 +210,5 @@ dialog.sheet .notice { margin: 8px 0 0; }
 .modebar .share { margin: 0; padding: 4px 0; }
 .modebar button { flex: none; margin-left: auto; min-height: 40px; border-color: var(--accent); color: var(--accent); }
 .modebar button.on { background: var(--accent); color: var(--accent-text); }
+/* Namen onder de open keuzeknoppen: geen overlap, links uitgelijnd met de knoppen */
+.att + .who { margin: 6px 0 4px calc(-5.4rem - 10px); }
