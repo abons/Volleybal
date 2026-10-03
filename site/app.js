@@ -256,40 +256,38 @@ function matchRow(m, team) {
         ${attendanceHtml(m)}
       </div>
       <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda">${ico.calPlus}</button>
-      <div class="att-edit" data-choice="${esc(m.i)}">${attChoice(m)}</div>
     </div>`;
 }
 
-// Wie komt er? Teamgenoten (zonder jezelf) plus jouw eigen keuze met je naam.
+// Wie komt er? Teamgenoten (zonder jezelf) plus jouw eigen keuze met je naam, compact: "✓ Anouk, Bo  ? Dewi  ✕ Eline".
+const GLYPH = { yes: "✓", maybe: "?", no: "✕" };
 function whoHtml(m) {
   if (!shared.enabled || !others) return "";
   const list = (others.get(m.i) || []).filter((o) => o.uid !== myUid);
   const mine = attendance.get(m.i);
   if (mine && state.name) list.push({ name: state.name, status: mine });
-  const parts = STATUS.map(([k, label]) => {
+  return STATUS.map(([k, label]) => {
     const names = list.filter((o) => o.status === k).map((o) => o.name).sort((a, b) => a.localeCompare(b, "nl"));
-    return names.length ? `<span class="who-${k}"><b>${label}:</b> ${names.map(esc).join(", ")}</span>` : "";
-  }).filter(Boolean);
-  return parts.length ? parts.join(" ") : `<span class="muted">Nog niemand heeft gereageerd.</span>`;
+    return names.length ? `<span class="who-${k}"><span aria-hidden="true">${GLYPH[k]}</span><span class="sr-only">${label}: </span> ${names.map(esc).join(", ")}</span>` : "";
+  }).filter(Boolean).join(" ");
 }
 
-// Standaard zie je alleen je huidige keuze; tik erop om te wijzigen (dan verschijnen de drie knoppen).
+// Standaard een rustige regel met je keuze; tik erop en dezelfde plek wordt Ja / Misschien / Nee.
 let editing = null; // id van de wedstrijd waarvan de keuzeknoppen openstaan
 
 function attInner(m) {
   const cur = attendance.get(m.i);
-  const c = STATUS.find(([k]) => k === cur);
-  const open = editing === m.i;
-  const chip = `<button class="att-now ${cur ? "set att-" + cur : ""}" data-edit="${esc(m.i)}" aria-expanded="${open}" aria-label="${c ? `Aanwezigheid: ${esc(c[2].toLowerCase())}. Tik om te wijzigen` : `Aanwezigheid doorgeven voor ${esc(m.t)}`}">${c ? `<span aria-hidden="true">${{ yes: "✓", maybe: "?", no: "✕" }[cur]}</span> ${c[1]}` : "Aanwezig?"}</button>`;
-  return `${chip}${shared.enabled ? `<div class="who" aria-live="polite">${whoHtml(m)}</div>` : ""}`;
-}
-
-// De drie keuzeknoppen: een eigen regel over de volle breedte, alleen als je erop getikt hebt.
-function attChoice(m) {
-  if (editing !== m.i) return "";
-  const cur = attendance.get(m.i);
-  return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, name, long]) =>
-    `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>`;
+  if (editing === m.i) {
+    return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, name, long]) =>
+      `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>`;
+  }
+  const text = { yes: "Je komt", maybe: "Misschien", no: "Je komt niet" }[cur];
+  const line = cur
+    ? `<span class="dot att-${cur}" aria-hidden="true">${GLYPH[cur]}</span>${text}`
+    : `Aanwezig? <span class="cta">Geef door</span>`;
+  const aria = cur ? `Aanwezigheid: ${esc(text.toLowerCase())}. Tik om te wijzigen` : `Aanwezigheid doorgeven voor ${esc(m.t)}`;
+  const who = whoHtml(m);
+  return `<button class="att-now${cur ? " set" : ""}" data-edit="${esc(m.i)}" aria-label="${aria}">${line}</button>${who ? `<div class="who" aria-live="polite">${who}</div>` : ""}`;
 }
 
 function attendanceHtml(m) {
@@ -378,9 +376,7 @@ function renderTeam() {
       const box = $("#matches").querySelector(`[data-box="${CSS.escape(m.i)}"]`);
       if (!box) return;
       box.innerHTML = attInner(m);
-      const choice = $("#matches").querySelector(`[data-choice="${CSS.escape(m.i)}"]`);
-      if (choice) choice.innerHTML = attChoice(m);
-      if (focusSel) $("#matches").querySelector(`[data-box="${CSS.escape(m.i)}"], [data-choice="${CSS.escape(m.i)}"]`) && (focusSel === ".att button" ? choice : box).querySelector(focusSel === ".att button" ? "button" : focusSel)?.focus();
+      if (focusSel) box.querySelector(focusSel)?.focus();
     };
     const ed = e.target.closest("[data-edit]");
     const em = ed && (state.matches || []).find((x) => x.i === ed.dataset.edit);

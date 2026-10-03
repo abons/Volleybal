@@ -161,36 +161,30 @@ dialog.sheet:not([open]) { display: none; }
 .legend { margin: 8px 0 0; }
 .back { margin: -6px 0 6px; }
 
-/* Aanwezigheid */
-.att { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
-.att button { min-height: 44px; padding: 6px 4px; font-size: .9rem; border-color: var(--line-strong); }
-.att button[aria-pressed=true] { font-weight: 700; color: var(--accent-text); border-color: transparent; }
-.att button[aria-pressed=true]::before { content: "\2713\00a0"; }
+/* Aanwezigheid: rustige regel in de tekstkolom; tikken maakt er Ja / Misschien / Nee van */
+.match { grid-template-columns: 5.4rem minmax(0, 1fr) auto; }
+.vs { flex-wrap: wrap; }
+.share { margin: 4px 0 0; }
+.att-box { margin-top: 2px; }
+.past .att-box { display: none; }
+.att-now { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; padding: 4px 0; border: 0; border-radius: 0; background: none; color: var(--muted); font-size: .9rem; font-weight: 500; justify-content: flex-start; text-align: left; white-space: nowrap; }
+.att-now.set { color: var(--text); font-weight: 600; }
+.att-now .cta { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.dot { width: 1.25rem; height: 1.25rem; border-radius: 50%; display: inline-grid; place-items: center; font-size: .75rem; font-weight: 800; color: var(--accent-text); flex: none; }
+.dot.att-yes { background: var(--home); } .dot.att-maybe { background: var(--away); } .dot.att-no { background: var(--loss); }
+.who { display: flex; flex-wrap: wrap; gap: 0 12px; margin: -6px 0 4px; font-size: .85rem; color: var(--muted); }
+.who-yes > span:first-child { color: var(--home); } .who-maybe > span:first-child { color: var(--away); } .who-no > span:first-child { color: var(--loss); }
+.who span[aria-hidden] { font-weight: 800; }
+.att { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+.att button { min-height: 44px; padding: 4px 2px; border: 0; border-radius: 0; font-size: .9rem; }
+.att button + button { border-left: 1px solid var(--line-strong); }
+.att button[aria-pressed=true] { font-weight: 700; color: var(--accent-text); }
 .att .att-yes[aria-pressed=true] { background: var(--home); }
 .att .att-maybe[aria-pressed=true] { background: var(--away); }
 .att .att-no[aria-pressed=true] { background: var(--loss); }
-.att .att-no[aria-pressed=true]::before { content: "\2715\00a0"; }
+.att button[aria-pressed=true]::before { content: "\2713\00a0"; }
 .att .att-maybe[aria-pressed=true]::before { content: "?\00a0"; }
-.past .att { display: none; }
-.who { grid-column: 1 / -1; font-size: .9rem; display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: -2px; }
-.who-yes b { color: var(--home); } .who-maybe b { color: var(--away); } .who-no b { color: var(--loss); }
-.past .who { display: none; }
-.share { margin: 4px 0 0; }
-
-/* Aanwezigheid als modus: standaard alleen je keuze, tik om te wijzigen */
-.att-box { grid-column: 1 / -1; display: grid; gap: 6px; }
-.att-box .att { grid-column: auto; }
-.att-now { min-height: 44px; width: 100%; justify-content: flex-start; padding: 6px 12px; font-size: .9rem; color: var(--muted); border-style: dashed; }
-.att-now.set { border-style: solid; border-color: transparent; font-weight: 700; color: var(--accent-text); }
-.att-now.att-yes { background: var(--home); } .att-now.att-maybe { background: var(--away); } .att-now.att-no { background: var(--loss); }
-.past .att-box { display: none; }
-
-/* Aanwezigheid in de regel zelf, onder de plaats */
-.att-box { grid-column: auto; margin-top: 4px; justify-items: start; }
-.att-now { width: auto; min-height: 40px; padding: 4px 12px; border-radius: 999px; }
-.att-box .att { display: flex; flex-wrap: wrap; width: 100%; }
-.att-box .att button { flex: 1 1 auto; min-height: 40px; padding: 4px 10px; }
-.att-box .who { grid-column: auto; margin-top: 0; }
-.att-edit { grid-column: 1 / -1; }
-.att-edit:empty { display: none; }
-.att-edit .att { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.att .att-no[aria-pressed=true]::before { content: "\2715\00a0"; }
+/* Tijdens het kiezen krijgen de drie knoppen de volle rijbreedte (onder de datum door) */
+.match:has(.att) .when { align-self: start; }
+.att { margin-left: calc(-5.4rem - 10px); width: calc(100% + 5.4rem + 10px); }
