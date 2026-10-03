@@ -1,5 +1,7 @@
 # Volleybal
 
+**Live: https://abons.github.io/Volleybal/**
+
 Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en zet wedstrijden
 (per wedstrijd of voor het hele team) in je agenda. Geen account, geen login, geen tracking, geen dependencies.
 
@@ -9,7 +11,8 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
 - **Hele team in je agenda**: een `webcal://`-abonnement op Nevobo's eigen `programma.ics` van het team.
   Wijzigingen van Nevobo komen vanzelf mee. Lukt `webcal://` niet (sommige Android-apps), kopieer dan de link
   en voeg hem toe als agenda-abonnement (Google Agenda → Andere agenda's → Via URL).
-- **Installeren**: open de pagina op je telefoon en kies “Zet op beginscherm”. Daarna werkt hij ook offline.
+- **Installeren als app**: op Android verschijnt onderaan de knop “Zet op je beginscherm als app” (of kies in Chrome ⋮ → *App installeren*).
+  Op iPhone/iPad: Safari → Deel → *Zet op beginscherm*. Daarna werkt hij ook offline.
 
 ## Hoe het werkt
 

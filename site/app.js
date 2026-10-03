@@ -275,5 +275,32 @@ async function main() {
   render();
 }
 
+// ---- Installeren als app (PWA) ----
+// Android/Chrome: de browser geeft een beforeinstallprompt, die tonen we achter een knop.
+// iPhone/iPad: Safari heeft geen prompt, daar leggen we de stappen uit.
+const installBox = $("#install");
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+let installEvent = null;
+
+function showInstall() {
+  if (standalone) return;
+  const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (installEvent) {
+    installBox.innerHTML = `<button class="primary" id="do-install">📲 Zet op je beginscherm als app</button>`;
+    $("#do-install").addEventListener("click", async () => {
+      installEvent.prompt();
+      await installEvent.userChoice;
+      installEvent = null;
+      installBox.hidden = true;
+    });
+  } else if (ios) {
+    installBox.innerHTML = `<p class="notice">📲 <b>Als app installeren:</b> tik in Safari op <b>Deel</b> (het vierkantje met pijl) en kies <b>Zet op beginscherm</b>.</p>`;
+  } else return;
+  installBox.hidden = false;
+}
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; showInstall(); });
+addEventListener("appinstalled", () => { installBox.hidden = true; toast("Geïnstalleerd"); });
+showInstall();
+
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 main();

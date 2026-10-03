@@ -74,3 +74,6 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
 @media (prefers-reduced-motion: reduce) { #toast { transition: none; } }
+
+#install { margin: 16px 0 0; }
+#install button { width: 100%; }
