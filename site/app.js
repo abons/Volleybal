@@ -313,12 +313,14 @@ function whoHtml(m) {
 
 // Standaard een rustige regel met je keuze; tik erop en dezelfde plek wordt Ja / Misschien / Nee.
 let editing = null; // id van de wedstrijd waarvan de keuzeknoppen openstaan
+let entering = false; // "Geef door"-modus: bij alle wedstrijden staan de keuzeknoppen open
 
 function attInner(m) {
   const cur = attendance.get(m.i);
-  if (editing === m.i) {
+  if (entering || editing === m.i) {
+    const who = entering ? whoHtml(m) : "";
     return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, name, long]) =>
-      `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>`;
+      `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>${who ? `<div class="who" aria-live="polite">${who}</div>` : ""}`;
   }
   const text = { yes: "Je komt", maybe: "Misschien", no: "Je komt niet" }[cur];
   const line = cur
@@ -441,11 +443,18 @@ function renderTeam() {
       const next = attendance.get(am.i) === a.dataset.att ? null : a.dataset.att;
       attendance.set(am.i, next, am.s);
       editing = null;
-      redraw(am, ".att-now");
+      redraw(am, entering ? `[data-att="${a.dataset.att}"]` : ".att-now");
       pushMine(am).then(loadOthers, () => toast("Delen met je team is niet gelukt. Je keuze staat wel op dit toestel."));
       return;
     }
     if (e.target.closest("#g-open")) { openGroupDialog(); return; }
+    if (e.target.closest("#att-mode")) {
+      entering = !entering;
+      editing = null;
+      renderMatches();
+      $("#att-mode")?.focus();
+      return;
+    }
     const b = e.target.closest("[data-add]");
     const m = b && (state.matches || []).find((x) => x.i === b.dataset.add);
     if (!m) return;
@@ -471,6 +480,11 @@ function renderMatches() {
 
 const loading = () => (state.matches === null && !state.error ? `<p class="muted">Laden…</p>` : "");
 const problem = () => (state.error ? `<p class="notice">${esc(state.error)}</p><button id="retry">Opnieuw proberen</button>` : "");
+
+// Balk boven het programma: groepsinfo en de knop die bij alle wedstrijden tegelijk de keuzeknoppen opent.
+function modeBar() {
+  return `<div class="modebar">${shared.enabled ? groupLine() : ""}<button class="small${entering ? " on" : ""}" id="att-mode" aria-pressed="${entering}" title="Aanwezigheid bij alle wedstrijden doorgeven">${entering ? "Klaar" : "Geef door"}</button></div>`;
+}
 
 function groupLine() {
   const code = groupOf();
@@ -586,7 +600,7 @@ function programHtml(team) {
     <h3 class="sr-only">Komende wedstrijden</h3>
     ${problem()}${loading()}
     ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
-    ${shared.enabled ? groupLine() : ""}
+    ${upcoming.length ? modeBar() : shared.enabled ? groupLine() : ""}
     ${upcoming.map((m) => matchRow(m, team)).join("")}
   </section>`;
 }
@@ -786,6 +800,7 @@ function render() {
   state.error = "";
   resetShared();
   editing = null;
+  entering = false;
   renderTeam();
   loadMatches();
 }

@@ -204,3 +204,9 @@ dialog.sheet .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; ma
 dialog.sheet .row2 button { min-width: 0; }
 .code { font: 700 1.6rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-align: center; margin: 8px 0; padding: 12px; border-radius: 12px; background: var(--soft); user-select: all; }
 dialog.sheet .notice { margin: 8px 0 0; }
+
+/* Geef-door-modus: knop naast de groepsregel */
+.modebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
+.modebar .share { margin: 0; padding: 4px 0; }
+.modebar button { flex: none; margin-left: auto; min-height: 40px; border-color: var(--accent); color: var(--accent); }
+.modebar button.on { background: var(--accent); color: var(--accent-text); }
