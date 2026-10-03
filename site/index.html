@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="nl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Volleybal</title>
+  <meta name="description" content="Zoek je Nevobo-team, bewaar het als favoriet en zet wedstrijden in je agenda. Geen account nodig.">
+  <meta name="theme-color" content="#1d4ed8">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Volleybal">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <h1>Volleybal</h1>
+    <span id="updated" class="muted"></span>
+  </header>
+  <main id="view" aria-live="polite"></main>
+  <footer class="muted">
+    Wedstrijdgegevens van <a href="https://www.nevobo.nl" rel="noopener">Nevobo</a>.
+    Je favoriet blijft alleen op dit toestel; er is geen account.
+  </footer>
+  <div id="toast" role="status"></div>
+  <script src="app.js" type="module"></script>
+</body>
+</html>

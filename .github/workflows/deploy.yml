@@ -1,0 +1,50 @@
+name: Bouw en publiceer
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "17 4,16 * * *" # twee keer per dag verse wedstrijddata van Nevobo
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # Houd de vorige data bij, zodat een gewone push niet alles opnieuw bij Nevobo ophaalt
+      # en een mislukt verzoek terugvalt op de vorige versie van dat team.
+      - uses: actions/cache@v4
+        with:
+          path: _data
+          key: nevobo-data-${{ github.run_id }}
+          restore-keys: nevobo-data-
+      - name: Bouw de site
+        run: node scripts/build.mjs
+        env:
+          FORCE: ${{ github.event_name != 'push' && '1' || '' }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
