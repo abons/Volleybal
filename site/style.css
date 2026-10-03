@@ -120,3 +120,4 @@ button.link.inline { display: inline; padding: 0; min-height: 0; margin: 0; text
 .club-match .muted { font-size: .85rem; }
 .match.today { background: var(--soft); box-shadow: inset 3px 0 0 var(--accent); margin: 0 -14px; padding-left: 11px; padding-right: 14px; border-radius: 8px; }
 .match.today .when .d { color: var(--accent); }
+button.small.icon { min-width: 44px; padding: 8px; font-size: 1.15rem; line-height: 1; }

@@ -187,7 +187,7 @@ function matchRow(m, team) {
         <div class="vs">${opp ? `<span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span>${esc(opp)}` : esc(m.t)}</div>
         ${place}
       </div>
-      <button class="small" data-add="${esc(m.i)}" aria-label="Zet ${esc(m.t)} in je agenda">+ Agenda</button>
+      <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda"><span aria-hidden="true">📅</span></button>
     </div>`;
 }
 
@@ -415,7 +415,7 @@ async function renderClub() {
     return `<div class="match club-match${isToday(d) ? " today" : ""}">
       <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what"><div class="vs">${esc(home)}</div><div class="muted">tegen ${esc(away || "?")}</div>${place}</div>
-      <button class="small" data-add="${esc(m.i)}" aria-label="Zet ${esc(m.t)} in je agenda">+ Agenda</button>
+      <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda"><span aria-hidden="true">📅</span></button>
     </div>`;
   }).join("");
   const box = $("#club-matches");
