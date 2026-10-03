@@ -37,7 +37,7 @@ async function loadTeams() {
     return { key, naam, club, plaats, stand, hay: norm(`${naam} ${club} ${plaats} ${stand} ${soort} ${nr}`) };
   });
   teamIndex = new Map(teamList.map((t) => [t.key, t]));
-  $("#updated").textContent = "Gegevens van " + new Date(updated).toLocaleDateString("nl-NL", { day: "numeric", month: "short", timeZone: TZ });
+  $("#updated").textContent = ", bijgewerkt op " + new Date(updated).toLocaleDateString("nl-NL", { day: "numeric", month: "short", timeZone: TZ });
 }
 
 function search(q) {
@@ -113,7 +113,7 @@ function toast(msg) {
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove("show"), 2800);
+  toastTimer = setTimeout(() => el.classList.remove("show"), 3200);
 }
 
 function teamUrls(key) {
@@ -122,36 +122,42 @@ function teamUrls(key) {
   return { web: `webcal://${path}`, https: `https://${path}` };
 }
 
+// "Sporthal X, Straat 5, 1234AB  Plaats" -> "Sporthal X, Plaats"
+function shortPlace(loc) {
+  const m = /^(.*?), .*?, \d{4}\s?[A-Z]{2}\s+(.*)$/.exec(loc);
+  return m ? `${m[1]}, ${m[2]}` : loc;
+}
+
 function renderSearch() {
-  const results = state.query.trim().length >= 2 ? search(state.query) : [];
-  const shown = results.slice(0, 40);
   view.innerHTML = `
     <section class="card">
       <h2>${state.active ? "Ander team kiezen" : "Zoek je team"}</h2>
-      <p class="muted">Typ de naam van je vereniging of team, bijvoorbeeld “Volley2B DS 1” of “heren 2 Rotterdam”.</p>
+      <p class="muted">Typ de naam van je club of team, bijvoorbeeld “Volley2B DS 1” of “heren 2 Rotterdam”.</p>
       <input id="q" type="search" placeholder="Teamnaam, club of plaats" value="${esc(state.query)}" autocomplete="off" autocapitalize="off" enterkeyhint="search" aria-label="Zoek een team">
-      <ul class="results" id="results">
-        ${shown.map((t) => `<li><button data-key="${esc(t.key)}"><b>${esc(t.naam)}</b><span class="muted">${esc(t.club)}${t.plaats ? ", " + esc(t.plaats) : ""}${t.stand ? " · " + esc(t.stand) : ""}</span></button></li>`).join("")}
-      </ul>
-      ${state.query.trim().length >= 2 && !results.length ? `<p class="notice">Geen team gevonden. Probeer een deel van de naam.</p>` : ""}
-      ${results.length > shown.length ? `<p class="muted">${results.length} teams gevonden, de eerste ${shown.length} staan hierboven. Typ iets specifieker.</p>` : ""}
+      <p id="count" class="muted" role="status"></p>
+      <ul class="results" id="results"></ul>
       ${state.active ? `<button id="back">Terug naar mijn team</button>` : ""}
     </section>`;
   const q = $("#q");
-  q.addEventListener("input", () => {
-    state.query = q.value;
-    const pos = q.selectionStart;
-    renderSearch();
-    const n = $("#q");
-    n.focus();
-    n.setSelectionRange(pos, pos);
-  });
+  q.addEventListener("input", () => { state.query = q.value; updateResults(); });
   $("#results").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-key]");
     if (b) selectTeam(b.dataset.key);
   });
-  $("#back")?.addEventListener("click", () => { state.searching = false; render(); });
-  if (!state.query) q.focus({ preventScroll: true });
+  $("#back")?.addEventListener("click", () => { state.searching = false; render(); $("#change")?.focus(); });
+  updateResults();
+  q.focus({ preventScroll: true });
+}
+
+// Alleen de lijst verversen, zodat het zoekveld (en je toetsenbord) blijft staan.
+function updateResults() {
+  const enough = state.query.trim().length >= 2;
+  const results = enough ? search(state.query) : [];
+  const shown = results.slice(0, 40);
+  $("#results").innerHTML = shown.map((t) => `<li><button data-key="${esc(t.key)}"><b>${esc(t.naam)}</b><span class="muted">${esc(t.club)}${t.plaats ? ", " + esc(t.plaats) : ""}${t.stand ? " · " + esc(t.stand) : ""}</span></button></li>`).join("");
+  $("#count").textContent = !enough ? "" : !results.length ? "Geen team gevonden. Probeer een deel van de naam."
+    : results.length > shown.length ? `${results.length} teams gevonden. Typ iets specifieker om de lijst te verkleinen.`
+    : `${results.length} ${results.length === 1 ? "team" : "teams"} gevonden`;
 }
 
 function matchRow(m, team) {
@@ -159,15 +165,15 @@ function matchRow(m, team) {
   const me = norm(team.naam);
   const isHome = norm(home || "") === me;
   const isAway = norm(away || "") === me;
+  const opp = isHome ? away : isAway ? home : null;
   const d = parseDt(m.s);
-  const label = (n, mine) => (mine ? `<span class="me">${esc(n)}</span>` : esc(n));
-  const where = m.l ? `<a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(m.l)}</a>` : "";
+  const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
   return `
     <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}">
       <div class="when"><div class="d">${esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
-      <div>
-        <div class="vs">${isHome ? '<span class="tag home">thuis</span>' : isAway ? '<span class="tag away">uit</span>' : ""}${away ? `${label(home, isHome)} – ${label(away, isAway)}` : esc(m.t)}</div>
-        ${where ? `<div class="where">${where}</div>` : ""}
+      <div class="what">
+        <div class="vs">${opp ? `<span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span>${esc(opp)}` : esc(m.t)}</div>
+        ${place}
       </div>
       <button class="small" data-add="${esc(m.i)}" aria-label="Zet ${esc(m.t)} in je agenda">+ Agenda</button>
     </div>`;
@@ -175,76 +181,98 @@ function matchRow(m, team) {
 
 function renderTeam() {
   const team = teamIndex.get(state.active);
-  const { web, https } = teamUrls(state.active);
   const isFav = state.favs.includes(state.active);
-  const now = Date.now() - 3 * 3600e3;
-  const all = state.matches || [];
-  const upcoming = all.filter((m) => parseDt(m.s) >= now);
-  const past = all.filter((m) => parseDt(m.s) < now).reverse();
 
   view.innerHTML = `
     ${state.favs.length > 1 ? `<div class="chips" role="group" aria-label="Mijn teams">${state.favs.map((k) => `<button class="chip" data-switch="${esc(k)}" aria-pressed="${k === state.active}">${esc(teamIndex.get(k)?.naam || k)}</button>`).join("")}</div>` : ""}
     <section class="card">
       <div class="team-head">
         <div>
-          <h2>${esc(team.naam)}</h2>
-          <p class="muted">${esc(team.club)}${team.plaats ? ", " + esc(team.plaats) : ""}</p>
-          ${team.stand ? `<p class="muted">${esc(team.stand)}</p>` : ""}
+          <h2 id="team-name" tabindex="-1">${esc(team.naam)}</h2>
+          <p class="muted">${esc(team.club)}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand) : ""}</p>
         </div>
-        <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit favorieten" : "Maak favoriet"}">${isFav ? "★" : "☆"}</button>
+        <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${isFav ? "★" : "☆"}</button>
       </div>
       <div class="actions">
-        <a class="btn primary" id="subscribe" href="${esc(web)}">📅 Team abonneren in agenda</a>
-        <div class="row">
-          <button id="all" ${all.length ? "" : "disabled"}>⬇ Alles als .ics</button>
-          <button id="copy">Kopieer agenda-link</button>
-          <button id="change">Ander team</button>
-        </div>
+        <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}"><span aria-hidden="true">📅</span> Alle wedstrijden in je agenda</a>
+        <p class="muted hint">Nieuwe en gewijzigde wedstrijden komen vanzelf mee.</p>
+        <details class="more">
+          <summary>Meer opties</summary>
+          <div class="row">
+            <button id="all">Download komende wedstrijden</button>
+            <button id="copy">Kopieer link voor je agenda</button>
+          </div>
+        </details>
       </div>
+      <button class="link" id="change">Ander team kiezen ›</button>
     </section>
-    <section class="card">
-      ${state.error ? `<p class="notice">${esc(state.error)}</p>` : ""}
-      ${state.matches === null && !state.error ? `<p class="muted">Wedstrijden laden…</p>` : ""}
-      ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden gevonden.</p>` : ""}
-      ${upcoming.map((m) => matchRow(m, team)).join("")}
-    </section>
-    ${past.length ? `<details class="card"><summary>Gespeelde wedstrijden (${past.length})</summary>${past.map((m) => matchRow(m, team)).join("")}</details>` : ""}`;
+    <div id="matches"></div>`;
 
   $("#fav").addEventListener("click", () => {
     state.favs = isFav ? state.favs.filter((k) => k !== state.active) : [...state.favs, state.active];
     save();
     renderTeam();
-    toast(isFav ? "Verwijderd uit favorieten" : "Opgeslagen als favoriet op dit toestel");
+    $("#fav").focus();
+    toast(isFav ? "Verwijderd uit je teams" : "Team bewaard op dit toestel");
   });
   $("#change").addEventListener("click", () => { state.searching = true; state.query = ""; render(); });
   $("#all").addEventListener("click", () => {
-    download(`${slug(team.naam)}.ics`, calendar(`Wedstrijden ${team.naam}`, upcoming));
-    toast(`${upcoming.length} komende wedstrijden`);
+    const up = upcomingOf(state.matches || []);
+    download(`${slug(team.naam)}.ics`, calendar(`Wedstrijden ${team.naam}`, up));
+    toast(`${up.length} komende wedstrijden. Open het bestand om ze toe te voegen.`);
   });
   $("#copy").addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(https); toast("Link gekopieerd. Plak hem in je agenda-app als abonnement."); }
-    catch { prompt("Kopieer deze link en voeg hem toe als agenda-abonnement:", https); }
+    const link = teamUrls(state.active).https;
+    try { await navigator.clipboard.writeText(link); toast("Link gekopieerd. Plak hem in je agenda-app."); }
+    catch { prompt("Kopieer deze link en plak hem in je agenda-app:", link); }
   });
   view.querySelectorAll("[data-switch]").forEach((b) => b.addEventListener("click", () => selectTeam(b.dataset.switch, false)));
-  view.querySelectorAll("[data-add]").forEach((b) => b.addEventListener("click", () => {
-    const m = all.find((x) => x.i === b.dataset.add);
-    if (m) download(`${slug(m.t)}-${m.s.slice(0, 8)}.ics`, calendar(m.t, [m]));
-  }));
+  $("#matches").addEventListener("click", (e) => {
+    const b = e.target.closest("[data-add]");
+    const m = b && (state.matches || []).find((x) => x.i === b.dataset.add);
+    if (!m) return;
+    download(`${slug(m.t)}-${m.s.slice(0, 8)}.ics`, calendar(m.t, [m]));
+    toast("Open het bestand om de wedstrijd toe te voegen.");
+  });
+  renderMatches();
+}
+
+const upcomingOf = (all) => all.filter((m) => parseDt(m.s) >= Date.now() - 3 * 3600e3);
+
+// Alleen het wedstrijdgedeelte verversen, zodat de focus op de pagina blijft staan.
+function renderMatches() {
+  const team = teamIndex.get(state.active);
+  const all = state.matches || [];
+  const upcoming = upcomingOf(all);
+  const past = all.filter((m) => !upcoming.includes(m)).reverse();
+  $("#matches").innerHTML = `
+    <section class="card">
+      <h3>Komende wedstrijden</h3>
+      ${state.error ? `<p class="notice">${esc(state.error)}</p><button id="retry">Opnieuw proberen</button>` : ""}
+      ${state.matches === null && !state.error ? `<p class="muted">Wedstrijden laden…</p>` : ""}
+      ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
+      ${upcoming.map((m) => matchRow(m, team)).join("")}
+    </section>
+    ${past.length ? `<details class="card"><summary>Gespeelde wedstrijden (${past.length})</summary>${past.map((m) => matchRow(m, team)).join("")}</details>` : ""}`;
+  $("#retry")?.addEventListener("click", loadMatches);
+  const all$ = $("#all");
+  if (all$) all$.disabled = !upcoming.length;
 }
 
 async function loadMatches() {
   state.matches = null;
   state.error = "";
   const key = state.active;
+  if (!state.searching) renderMatches();
   try {
     const res = await fetch(`data/t/${key.replace(/\//g, "-")}.json`);
     if (res.status === 404) state.matches = [];
     else if (!res.ok) throw new Error();
     else state.matches = (await res.json()).m;
   } catch {
-    state.error = "Wedstrijden konden niet geladen worden. Ben je offline en heb je dit team nog niet eerder bekeken?";
+    state.error = "Geen verbinding, en dit team is nog niet eerder bekeken.";
   }
-  if (state.active === key && !state.searching) renderTeam();
+  if (state.active === key && !state.searching) renderMatches();
 }
 
 function selectTeam(key, makeFav = true) {
@@ -254,14 +282,16 @@ function selectTeam(key, makeFav = true) {
   if (makeFav && !state.favs.includes(key)) state.favs.push(key); // gekozen team wordt je favoriet
   save();
   render();
+  $("#team-name")?.focus({ preventScroll: true });
 }
 
 function render() {
-  if (state.searching || !state.active || !teamIndex?.has(state.active)) {
-    if (state.active && !teamIndex.has(state.active)) { state.favs = state.favs.filter((k) => k !== state.active); state.active = state.favs[0] || null; save(); }
-    if (state.active && !state.searching) return render();
-    return renderSearch();
+  if (state.active && !teamIndex.has(state.active)) { // team bestaat niet meer (nieuw seizoen)
+    state.favs = state.favs.filter((k) => k !== state.active);
+    state.active = state.favs[0] || null;
+    save();
   }
+  if (state.searching || !state.active) return renderSearch();
   state.matches = null;
   state.error = "";
   renderTeam();

@@ -28,18 +28,17 @@ a { color: var(--accent); }
 .team-head p { margin: 2px 0 0; }
 
 button, .btn {
-  font: inherit; font-weight: 600; cursor: pointer; text-decoration: none; text-align: center;
+  font: inherit; font-weight: 500; cursor: pointer; text-decoration: none; text-align: center;
   display: inline-flex; align-items: center; justify-content: center; gap: 6px;
   padding: 10px 14px; border-radius: 10px; border: 1px solid var(--line);
   background: var(--card); color: var(--text); min-height: 44px;
 }
-button.primary, .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-button.small { padding: 6px 10px; min-height: 36px; font-size: .9rem; }
-button.star { font-size: 1.4rem; padding: 4px 10px; line-height: 1; }
-button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button.primary, .btn.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+button.small { padding: 8px 10px; font-size: .9rem; white-space: nowrap; }
+button.star { font-size: 1.6rem; padding: 0 8px; line-height: 1; border: 0; background: none; color: var(--accent); min-width: 44px; }
+button:focus-visible, input:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .actions { display: grid; gap: 8px; margin-top: 12px; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.row #change { grid-column: 1 / -1; }
+.row { display: grid; gap: 8px; }
 
 input[type=search] {
   width: 100%; font: inherit; padding: 12px 14px; border-radius: 10px;
@@ -50,22 +49,27 @@ input[type=search] {
 .results b { font-weight: 700; }
 
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
-.chip { border-radius: 999px; padding: 4px 12px; min-height: 36px; font-size: .9rem; background: var(--soft); border-color: transparent; }
+.chip { border-radius: 999px; padding: 4px 14px; font-size: .9rem; background: var(--soft); border-color: transparent; }
 .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-text); }
 
-.match { display: grid; grid-template-columns: 58px 1fr; gap: 4px 12px; align-items: start; padding: 14px 0; border-top: 1px solid var(--line); }
-.match > button { grid-column: 2; justify-self: start; margin-top: 6px; }
+h3 { margin: 0 0 4px; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.match { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+h3 + .match { border-top: 0; }
 .match:first-child { border-top: 0; }
-.when { text-align: center; line-height: 1.2; }
-.when .d { font-weight: 700; }
+.when { text-align: left; line-height: 1.25; }
+.when { white-space: nowrap; min-width: 5.4rem; }
+.when .d { font-weight: 700; font-size: .9rem; }
 .when .t { font-size: .85rem; color: var(--muted); }
-.vs { font-weight: 600; }
-.vs .me { color: var(--accent); }
-.where { font-size: .85rem; color: var(--muted); }
+.vs { font-weight: 600; overflow-wrap: anywhere; }
+.where { font-size: .85rem; }
+.where a { color: var(--muted); text-decoration: none; }
+.where a:hover { text-decoration: underline; }
 .tag { font-size: .7rem; font-weight: 700; padding: 1px 7px; border-radius: 999px; margin-right: 6px; border: 1px solid currentColor; vertical-align: 1px; }
 .tag.home { color: var(--home); } .tag.away { color: var(--away); }
-.past { opacity: .7; }
-details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
+.past .vs { font-weight: 500; }
+.past { opacity: .85; }
+details summary { cursor: pointer; color: var(--muted); padding: 10px 0; min-height: 44px; }
+details.card summary { padding: 0; display: flex; align-items: center; }
 .notice { padding: 12px; border-radius: 10px; background: var(--soft); }
 #toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
@@ -77,3 +81,10 @@ details summary { cursor: pointer; font-weight: 600; padding: 6px 0; }
 
 #install { margin: 16px 0 0; }
 #install button { width: 100%; }
+
+.team-head h2 { overflow-wrap: anywhere; }
+h2:focus { outline: none; }
+.hint { margin: 0; text-align: center; }
+.more .row { margin-bottom: 4px; }
+button.link { border: 0; background: none; color: var(--accent); padding: 8px 0 0; min-height: 44px; font-weight: 500; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
