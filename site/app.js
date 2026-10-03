@@ -272,10 +272,24 @@ function whoHtml(m) {
   return parts.length ? parts.join(" ") : `<span class="muted">Nog niemand heeft gereageerd.</span>`;
 }
 
-function attendanceHtml(m) {
+// Standaard zie je alleen je huidige keuze; tik erop om te wijzigen (dan verschijnen de drie knoppen).
+let editing = null; // id van de wedstrijd waarvan de keuzeknoppen openstaan
+
+function attInner(m) {
   const cur = attendance.get(m.i);
-  return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, label, long]) =>
-    `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${label}</button>`).join("")}</div>${shared.enabled ? `<div class="who" aria-live="polite">${whoHtml(m)}</div>` : ""}`;
+  const label = esc(m.t);
+  const control = editing === m.i
+    ? `<div class="att" role="group" aria-label="Aanwezig bij ${label}?">${STATUS.map(([k, name, long]) =>
+        `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>`
+    : (() => {
+        const c = STATUS.find(([k]) => k === cur);
+        return `<button class="att-now ${cur ? "set att-" + cur : ""}" data-edit="${esc(m.i)}" aria-label="${c ? `Aanwezigheid: ${esc(c[2].toLowerCase())}. Tik om te wijzigen` : `Aanwezigheid doorgeven voor ${label}`}">${c ? `<span aria-hidden="true">${{ yes: "✓", maybe: "?", no: "✕" }[cur]}</span> ${c[1]}` : "Aanwezig? Geef door"}</button>`;
+      })();
+  return `${control}${shared.enabled ? `<div class="who" aria-live="polite">${whoHtml(m)}</div>` : ""}`;
+}
+
+function attendanceHtml(m) {
+  return `<div class="att-box" data-box="${esc(m.i)}">${attInner(m)}</div>`;
 }
 
 function renderTeam() {
@@ -356,16 +370,29 @@ function renderTeam() {
   }));
   view.querySelectorAll("[data-switch]").forEach((b) => b.addEventListener("click", () => selectTeam(b.dataset.switch, false)));
   $("#matches").addEventListener("click", (e) => {
+    const redraw = (m, focusSel) => {
+      const box = $("#matches").querySelector(`[data-box="${CSS.escape(m.i)}"]`);
+      if (!box) return;
+      box.innerHTML = attInner(m);
+      if (focusSel) box.querySelector(focusSel)?.focus();
+    };
+    const ed = e.target.closest("[data-edit]");
+    const em = ed && (state.matches || []).find((x) => x.i === ed.dataset.edit);
+    if (em) { // keuzeknoppen openen; eventueel openstaande andere sluiten
+      const prev = editing && (state.matches || []).find((x) => x.i === editing);
+      editing = em.i;
+      if (prev) redraw(prev);
+      redraw(em, ".att button");
+      return;
+    }
     const a = e.target.closest("[data-att]");
     const am = a && (state.matches || []).find((x) => x.i === a.dataset.for);
     if (am) { // opnieuw tikken op de gekozen knop haalt je keuze weg
       const next = attendance.get(am.i) === a.dataset.att ? null : a.dataset.att;
       if (next && !askName()) return;
       attendance.set(am.i, next, am.s);
-      const group = a.closest(".att");
-      group.querySelectorAll("[data-att]").forEach((x) => x.setAttribute("aria-pressed", String(attendance.get(am.i) === x.dataset.att)));
-      const who = group.parentElement.querySelector(".who");
-      if (who) who.innerHTML = whoHtml(am);
+      editing = null;
+      redraw(am, ".att-now");
       pushMine(am).then(loadOthers, () => toast("Delen met je team is niet gelukt. Je keuze staat wel op dit toestel."));
       return;
     }

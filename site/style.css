@@ -176,3 +176,11 @@ dialog.sheet:not([open]) { display: none; }
 .who-yes b { color: var(--home); } .who-maybe b { color: var(--away); } .who-no b { color: var(--loss); }
 .past .who { display: none; }
 .share { margin: 4px 0 0; }
+
+/* Aanwezigheid als modus: standaard alleen je keuze, tik om te wijzigen */
+.att-box { grid-column: 1 / -1; display: grid; gap: 6px; }
+.att-box .att { grid-column: auto; }
+.att-now { min-height: 44px; width: 100%; justify-content: flex-start; padding: 6px 12px; font-size: .9rem; color: var(--muted); border-style: dashed; }
+.att-now.set { border-style: solid; border-color: transparent; font-weight: 700; color: var(--accent-text); }
+.att-now.att-yes { background: var(--home); } .att-now.att-maybe { background: var(--away); } .att-now.att-no { background: var(--loss); }
+.past .att-box { display: none; }
