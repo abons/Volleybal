@@ -15,7 +15,7 @@ function load() {
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active })); } catch { /* privémodus */ }
 }
-const state = { favs: [], active: null, ...load(), searching: false, query: "", matches: null, error: "" };
+const state = { favs: [], active: null, ...load(), searching: false, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
 
 // ---- Teamlijst ----
@@ -206,6 +206,9 @@ function renderTeam() {
       </div>
       <button class="link" id="change">Ander team kiezen ›</button>
     </section>
+    <div class="tabs" role="group" aria-label="Wat wil je zien?">
+      ${[["programma", "Programma"], ["uitslagen", "Uitslagen"], ["stand", "Stand"]].map(([k, l]) => `<button data-tab="${k}" aria-pressed="${state.tab === k}">${l}</button>`).join("")}
+    </div>
     <div id="matches"></div>`;
 
   $("#fav").addEventListener("click", () => {
@@ -226,6 +229,11 @@ function renderTeam() {
     try { await navigator.clipboard.writeText(link); toast("Link gekopieerd. Plak hem in je agenda-app."); }
     catch { prompt("Kopieer deze link en plak hem in je agenda-app:", link); }
   });
+  view.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
+    state.tab = b.dataset.tab;
+    view.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    renderMatches();
+  }));
   view.querySelectorAll("[data-switch]").forEach((b) => b.addEventListener("click", () => selectTeam(b.dataset.switch, false)));
   $("#matches").addEventListener("click", (e) => {
     const b = e.target.closest("[data-add]");
@@ -239,24 +247,87 @@ function renderTeam() {
 
 const upcomingOf = (all) => all.filter((m) => parseDt(m.s) >= Date.now() - 3 * 3600e3);
 
-// Alleen het wedstrijdgedeelte verversen, zodat de focus op de pagina blijft staan.
+// Alleen het onderste deel verversen, zodat de focus op de pagina blijft staan.
 function renderMatches() {
   const team = teamIndex.get(state.active);
-  const all = state.matches || [];
-  const upcoming = upcomingOf(all);
-  const past = all.filter((m) => !upcoming.includes(m)).reverse();
-  $("#matches").innerHTML = `
-    <section class="card">
-      <h3>Komende wedstrijden</h3>
-      ${state.error ? `<p class="notice">${esc(state.error)}</p><button id="retry">Opnieuw proberen</button>` : ""}
-      ${state.matches === null && !state.error ? `<p class="muted">Wedstrijden laden…</p>` : ""}
-      ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
-      ${upcoming.map((m) => matchRow(m, team)).join("")}
-    </section>
-    ${past.length ? `<details class="card"><summary>Gespeelde wedstrijden (${past.length})</summary>${past.map((m) => matchRow(m, team)).join("")}</details>` : ""}`;
+  const body = $("#matches");
+  if (state.tab === "uitslagen") body.innerHTML = resultsHtml(team);
+  else if (state.tab === "stand") { body.innerHTML = standHtml(team); loadTables(); }
+  else body.innerHTML = programHtml(team);
   $("#retry")?.addEventListener("click", loadMatches);
-  const all$ = $("#all");
-  if (all$) all$.disabled = !upcoming.length;
+  const all = $("#all");
+  if (all) all.disabled = !upcomingOf(state.matches || []).length;
+}
+
+const loading = () => (state.matches === null && !state.error ? `<p class="muted">Laden…</p>` : "");
+const problem = () => (state.error ? `<p class="notice">${esc(state.error)}</p><button id="retry">Opnieuw proberen</button>` : "");
+
+function programHtml(team) {
+  const upcoming = upcomingOf(state.matches || []);
+  return `<section class="card">
+    <h3>Komende wedstrijden</h3>
+    ${problem()}${loading()}
+    ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
+    ${upcoming.map((m) => matchRow(m, team)).join("")}
+  </section>`;
+}
+
+function resultRow(r, team) {
+  const [home, away] = r.t;
+  const me = norm(team.naam);
+  const isHome = norm(home) === me, isAway = norm(away) === me;
+  const [sh, sa] = r.e;
+  const won = isHome ? sh > sa : isAway ? sa > sh : null;
+  const day = new Date(r.s);
+  const name = (n, mine) => (mine ? `<b>${esc(n)}</b>` : esc(n));
+  return `
+    <div class="match">
+      <div class="when"><div class="d">${esc(fDay.format(day))}</div>${r.c ? `<div class="t">${esc(r.c)}</div>` : ""}</div>
+      <div class="what">
+        <div class="vs plain">${name(home, isHome)} – ${name(away, isAway)}</div>
+        <div class="where">${esc(r.z.map(([x, y]) => `${x}-${y}`).join(", "))}</div>
+      </div>
+      <div class="score ${won === null ? "" : won ? "win" : "loss"}">
+        <div class="sc">${sh}–${sa}</div>
+        ${won === null ? "" : `<div class="wl">${won ? "winst" : "verlies"}</div>`}
+      </div>
+    </div>`;
+}
+
+function resultsHtml(team) {
+  return `<section class="card">
+    <h3>Uitslagen</h3>
+    ${problem()}${loading()}
+    ${state.matches && !state.results.length ? `<p class="muted">Nog geen uitslagen dit seizoen.</p>` : ""}
+    ${state.results.map((r) => resultRow(r, team)).join("")}
+  </section>`;
+}
+
+function standHtml(team) {
+  if (state.matches === null && !state.error) return `<section class="card"><p class="muted">Laden…</p></section>`;
+  if (state.error) return `<section class="card">${problem()}</section>`;
+  if (!state.poules.length) return `<section class="card"><p class="muted">Er is nog geen stand voor dit team.</p></section>`;
+  if (state.tables === null) return `<section class="card"><p class="muted">Stand laden…</p></section>`;
+  return state.tables.filter(Boolean).map((t) => `
+    <section class="card">
+      <h3>${t.cup && !/^beker/i.test(t.n) ? "Beker · " : ""}${esc(t.n)}</h3>
+      <div class="table-wrap">
+        <table class="stand">
+          <caption class="sr-only">Stand ${esc(t.n)}</caption>
+          <thead><tr><th scope="col">#</th><th scope="col">Team</th><th scope="col"><abbr title="Gespeeld">Gs</abbr></th><th scope="col"><abbr title="Punten">Pnt</abbr></th><th scope="col">Sets</th></tr></thead>
+          <tbody>${t.r.map(([pos, key, naam, gs, pt, sv, st]) => `<tr${key === state.active ? ' class="me" aria-current="true"' : ""}><td>${pos || "–"}</td><td>${esc(naam)}</td><td>${gs}</td><td>${pt}</td><td>${sv}-${st}</td></tr>`).join("")}</tbody>
+        </table>
+      </div>
+    </section>`).join("");
+}
+
+async function loadTables() {
+  if (state.tables !== null || !state.poules.length) return;
+  const key = state.active;
+  const list = await Promise.all(state.poules.map((slug) => fetch(`data/p/${slug}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+  if (state.active !== key) return;
+  state.tables = list;
+  if (state.tab === "stand" && !state.searching) $("#matches").innerHTML = standHtml(teamIndex.get(key));
 }
 
 async function loadMatches() {
@@ -268,7 +339,12 @@ async function loadMatches() {
     const res = await fetch(`data/t/${key.replace(/\//g, "-")}.json`);
     if (res.status === 404) state.matches = [];
     else if (!res.ok) throw new Error();
-    else state.matches = (await res.json()).m;
+    else {
+      const j = await res.json();
+      state.matches = j.m || [];
+      state.results = j.r || [];
+      state.poules = j.p || [];
+    }
   } catch {
     state.error = "Geen verbinding, en dit team is nog niet eerder bekeken.";
   }
@@ -279,6 +355,7 @@ function selectTeam(key, makeFav = true) {
   state.active = key;
   state.searching = false;
   state.query = "";
+  state.tab = "programma";
   if (makeFav && !state.favs.includes(key)) state.favs.push(key); // gekozen team wordt je favoriet
   save();
   render();
@@ -293,6 +370,9 @@ function render() {
   }
   if (state.searching || !state.active) return renderSearch();
   state.matches = null;
+  state.results = [];
+  state.poules = [];
+  state.tables = null;
   state.error = "";
   renderTeam();
   loadMatches();

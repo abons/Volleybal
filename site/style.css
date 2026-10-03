@@ -88,3 +88,20 @@ h2:focus { outline: none; }
 .more .row { margin-bottom: 4px; }
 button.link { border: 0; background: none; color: var(--accent); padding: 8px 0 0; min-height: 44px; font-weight: 500; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 12px 0 0; }
+.tabs button[aria-pressed=true] { background: var(--accent); color: var(--accent-text); border-color: var(--accent); font-weight: 600; }
+.vs.plain { font-weight: 400; }
+.vs.plain b { font-weight: 700; }
+.score { text-align: right; line-height: 1.2; }
+.score .sc { font-weight: 700; font-size: 1.1rem; }
+.score .wl { font-size: .75rem; font-weight: 600; }
+.score.win { color: var(--home); } .score.loss { color: var(--away); }
+.table-wrap { overflow-x: auto; }
+table.stand { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.stand th, .stand td { padding: 8px 6px; text-align: right; border-top: 1px solid var(--line); white-space: nowrap; }
+.stand th { color: var(--muted); font-weight: 500; font-size: .8rem; border-top: 0; }
+.stand th:nth-child(2), .stand td:nth-child(2) { text-align: left; white-space: normal; width: 100%; }
+.stand td:first-child, .stand th:first-child { text-align: left; padding-left: 0; }
+.stand tr.me td { font-weight: 700; background: var(--soft); }
+abbr { text-decoration: none; }
