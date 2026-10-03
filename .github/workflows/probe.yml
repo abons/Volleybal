@@ -1,0 +1,25 @@
+name: probe
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nevobo API
+        run: |
+          B=https://api.nevobo.nl
+          A='Accept: application/ld+json'
+          g() { curl -sS -m 30 -H "$A" "$B$1"; }
+          echo "### team detail"; g /competitie/teams/ckm1h25/dames/1 | head -c 1500; echo
+          echo "### wedstrijd velden voor dit team (gespeeld)"
+          g "/competitie/wedstrijden?team=%2Fcompetitie%2Fteams%2Fckm1h25%2Fdames%2F1" | jq -c '."hydra:member"[]|{id:."@id",datum,status:.status.waarde,teams,eindstand,uitslag:.volledigeUitslag,thuis,uit,poule}' | head -8
+          echo "### docs: classes + properties relevant"
+          g /docs.jsonld | jq -r '."hydra:supportedClass"[]|select(."hydra:title"|test("Poule|Stand|Team|Indeling";"i"))|"\(."hydra:title"): "+([."hydra:supportedProperty"[]|."hydra:title"]|join(", "))'
+          echo "### entrypoint competitie keys"
+          g / | jq -r 'to_entries[]|select(.value|tostring|test("competitie"))|"\(.key) \(.value)"'
+          echo "### pouleindeling"
+          g "/competitie/pouleindelingen?team=%2Fcompetitie%2Fteams%2Fckm1h25%2Fdames%2F1" | head -c 2500; echo
+          echo "### poule 1 voorbeeld"
+          P=$(g "/competitie/wedstrijden?team=%2Fcompetitie%2Fteams%2Fckm1h25%2Fdames%2F1" | jq -r '."hydra:member"[]|select(.poule|test("regio"))|.poule' | head -1)
+          echo "poule=$P"; g "$P" | head -c 2500; echo
+          echo "### stand endpoints"
+          for u in "$P/stand" "/competitie/standen?poule=$P" "/competitie/stand?poule=$P" "/competitie/pouleindelingen?poule=$P"; do echo "-- $u"; curl -sS -m 30 -H "$A" -o - -w '\n[%{http_code}]\n' "$B$u" | head -c 1800; done
