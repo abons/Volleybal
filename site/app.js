@@ -489,11 +489,17 @@ function groupDialogHtml(prefill = "") {
     ${nameField}<button id="g-rename">Naam opslaan</button>
     <p id="g-err" class="notice" role="alert" hidden></p>
     <button class="link" id="g-leave">Groep verlaten</button>`;
+  if (prefill) return `<div class="sheet-head"><h3 id="group-title">Deelnemen aan de groep</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
+    <p class="muted">Je bent uitgenodigd voor een groep. Vul je naam in: teamgenoten zien die bij je keuze.</p>
+    ${nameField}
+    <label class="field">Groepscode<input id="g-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" value="${esc(prefill)}"></label>
+    <button class="btn primary" id="g-join">Deelnemen</button>
+    <p id="g-err" class="notice" role="alert" hidden></p>`;
   return `${head}
     <p class="muted">Je keuzes zijn dan zichtbaar voor je teamgenoten. Er is geen account; de code van de groep is de enige beveiliging.</p>
     ${nameField}
     <button class="btn primary" id="g-create">Nieuwe groep maken</button>
-    <label class="field">Of neem deel met een code<input id="g-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="XXXXX-XXXXX" value="${esc(prefill)}"></label>
+    <label class="field">Of neem deel met een code<input id="g-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="XXXXX-XXXXX"></label>
     <button id="g-join">Deelnemen</button>
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
@@ -503,6 +509,7 @@ function openGroupDialog(prefill = "") {
   if (!dlg) return;
   dlg.innerHTML = groupDialogHtml(prefill);
   if (!dlg.open) (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
+  if (prefill) $("#g-name")?.focus(); // alleen je naam ontbreekt nog
 }
 
 // Na maken, deelnemen of wijzigen: blad sluiten en meteen de nieuwe stand tonen; delen gebeurt op de achtergrond.
