@@ -43,3 +43,20 @@ npx serve _site                            # of: python3 -m http.server -d _site
 ```
 
 Zonder `LIMIT` duurt een volledige run een kwartier. Gegevens: [Nevobo](https://www.nevobo.nl).
+
+## Beheer
+
+- **Handmatig verversen**: GitHub → Actions → "Bouw en publiceer" → *Run workflow*. Een gewone push gebruikt de bewaarde data
+  uit de cache (jonger dan 10 uur) en duurt een halve minuut; het schema en *Run workflow* halen alles opnieuw op (ongeveer
+  8 minuten en 13,7k verzoeken bij Nevobo, twee keer per dag).
+- **Stopt het schema?** GitHub zet geplande workflows in een publieke repo uit na 60 dagen zonder commits. De site blijft dan
+  staan maar veroudert (onderaan staat "bijgewerkt op …"). Zet de workflow dan weer aan onder Actions, of doe een commit.
+- **Verandert de Nevobo-API?** De build controleert aantallen (te weinig standen, uitslagen of programma's, of meer dan 5% mislukte
+  verzoeken) en faalt dan bewust: de live site blijft op de laatste goede data staan. Kijk in de log van de run
+  (de regel `SAMENVATTING …` onderaan toont de aantallen) en pas `scripts/build.mjs` aan.
+- **Cache**: `_data/` (niet in git) wordt tussen runs bewaard met `actions/cache`; verwijder de cache onder Actions → Caches om
+  alles opnieuw op te halen.
+- **Nieuwe versie van de app**: telefoons pakken die vanzelf op; de pagina herlaadt dan één keer. Een geopende zoekterm of tab
+  gaat daarbij verloren, je favoriet blijft bewaard.
+- **Gegevens en voorwaarden**: de wedstrijdgegevens zijn van [Nevobo](https://www.nevobo.nl) en worden via hun publieke API en
+  exports opgehaald. Er is geen licentie voor de code toegevoegd; voeg er een toe als je die wilt delen.

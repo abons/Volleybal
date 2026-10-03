@@ -19,6 +19,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45 # een volledige run duurt ongeveer 8 minuten
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

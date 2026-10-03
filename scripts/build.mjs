@@ -22,7 +22,7 @@ async function get(url, accept, tries = 5) {
   for (let n = 1; ; n++) {
     let wait = 1000 * 2 ** (n - 1); // 1, 2, 4, 8 seconden
     try {
-      const res = await fetch(API + url, { headers: { Accept: accept }, signal: AbortSignal.timeout(30000) });
+      const res = await fetch(API + url, { headers: { Accept: accept, "User-Agent": "Volleybal-PWA (https://github.com/abons/Volleybal)" }, signal: AbortSignal.timeout(30000) });
       if (res.status === 404) return null;
       if (res.status === 429 || res.status === 503) {
         const ra = Number(res.headers.get("retry-after"));
