@@ -27,7 +27,11 @@ self.addEventListener("fetch", (e) => {
     e.respondWith(
       caches.open(DATA).then(async (cache) => {
         const cached = await cache.match(req);
-        const net = fetch(req).then((res) => { if (res.ok) cache.put(req, res.clone()); return res; });
+        // Geeft de server een fout (bijvoorbeeld net tijdens een nieuwe publicatie), dan houden we de bewaarde versie.
+        const net = fetch(req).then((res) => {
+          if (res.ok) { cache.put(req, res.clone()); return res; }
+          return cached || res;
+        });
         if (swr && cached) { net.catch(() => {}); return cached; }
         return net.catch(() => cached || Response.error());
       })

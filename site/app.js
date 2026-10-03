@@ -27,9 +27,19 @@ const norm = (s) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,
 
 async function loadTeams() {
   if (teamIndex) return;
-  const res = await fetch("data/teams.json");
-  if (!res.ok) throw new Error("teams");
-  const data = await res.json();
+  // Een paar pogingen: direct na een nieuwe versie kan het bestand heel even ontbreken.
+  let data;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch("data/teams.json", { cache: attempt ? "reload" : "default" });
+      if (!res.ok) throw new Error(String(res.status));
+      data = await res.json();
+      break;
+    } catch (err) {
+      if (attempt >= 2) throw err;
+      await new Promise((r) => setTimeout(r, 1200 * (attempt + 1)));
+    }
+  }
   updated = data.updated;
   teamList = data.teams.map(([key, naam, club, plaats, stand]) => {
     const [, type, nr] = key.split("/");
@@ -381,7 +391,11 @@ function render() {
 async function main() {
   view.innerHTML = `<p class="muted">Teams laden…</p>`;
   try { await loadTeams(); }
-  catch { view.innerHTML = `<p class="notice">De teamlijst kon niet geladen worden. Controleer je verbinding en probeer het opnieuw.</p>`; return; }
+  catch {
+    view.innerHTML = `<p class="notice">De teamlijst kon niet geladen worden. Controleer je verbinding en probeer het opnieuw.</p><button id="again" class="primary">Opnieuw proberen</button>`;
+    $("#again").addEventListener("click", main);
+    return;
+  }
   render();
 }
 
