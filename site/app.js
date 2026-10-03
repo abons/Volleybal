@@ -50,6 +50,7 @@ const attendance = {
 };
 if (typeof state.name !== "string") state.name = "";
 if (typeof state.groups !== "object" || !state.groups || Array.isArray(state.groups)) state.groups = {};
+for (const [k, c] of Object.entries(state.groups)) if (!shared.validCode(String(c))) delete state.groups[k];
 // ---- Groep per team: de code is de enige beveiliging ----
 let others = null; // wedstrijd -> keuzes van groepsleden [{ uid, name, status }]
 let memberCount = 0;
@@ -64,19 +65,58 @@ async function pushMine(m) {
   await shared.put({ code, match: m.i, start: m.s, name: state.name, status: attendance.get(m.i) });
 }
 
+let othersSeq = 0;
+function resetShared() { others = null; memberCount = 0; state.shareError = false; othersSeq++; }
+
+// Alleen de aanwezigheidsblokken en de groepsregel verversen, zodat de focus en een openstaande keuze blijven staan.
+function refreshShared() {
+  if (state.searching || state.club || state.tab !== "programma") return;
+  const root = $("#matches");
+  if (!root) return;
+  const active = document.activeElement;
+  const focusBox = active?.classList?.contains("att-now") ? active.closest("[data-box]")?.dataset.box : null;
+  const focusLine = active?.id === "g-open";
+  for (const box of root.querySelectorAll("[data-box]")) {
+    if (box.dataset.box === editing) continue;
+    const m = (state.matches || []).find((x) => x.i === box.dataset.box);
+    if (m) box.innerHTML = attInner(m);
+    if (box.dataset.box === focusBox) box.querySelector(".att-now")?.focus();
+  }
+  const line = root.querySelector(".share");
+  if (line) line.outerHTML = groupLine();
+  if (focusLine) $("#g-open")?.focus();
+}
+
+// Jouw keuzes die in de groep ontbreken of afwijken (bijvoorbeeld na een mislukte push) opnieuw delen.
+async function reconcile(code, list) {
+  const remote = new Map((list || []).map((o) => [o.match, o]));
+  const jobs = [];
+  for (const m of upcomingOf(state.matches || [])) {
+    const mineNow = attendance.get(m.i), r = remote.get(m.i);
+    if (mineNow && (!r || r.status !== mineNow || r.name !== state.name)) jobs.push(pushMine(m));
+    else if (!mineNow && r) jobs.push(shared.put({ code, match: m.i, start: m.s, name: state.name, status: null }));
+  }
+  await Promise.all(jobs);
+}
+
 async function loadOthers() {
   const code = groupOf();
   const key = state.active;
   if (!code) { others = null; return; }
+  const seq = ++othersSeq;
+  const stale = () => seq !== othersSeq || state.active !== key || groupOf() !== code;
   try {
     myUid = await shared.myUid();
     const [map, list] = await Promise.all([shared.rsvps(code), shared.members(code)]);
-    if (state.active !== key || groupOf() !== code) return;
+    if (stale()) return;
     others = map;
     memberCount = list.length;
     state.shareError = false;
-  } catch { state.shareError = true; }
-  if (state.active === key && !state.searching && !state.club) renderMatches();
+    // eigen keuzes die in de groep ontbreken of afwijken, gelijktrekken (op de achtergrond)
+    const mineRemote = [...map.entries()].flatMap(([match, l]) => l.filter((o) => o.uid === myUid).map((o) => ({ ...o, match })));
+    reconcile(code, mineRemote).catch(() => {});
+  } catch { if (!stale()) state.shareError = true; }
+  if (!stale()) refreshShared();
 }
 
 if (typeof state.att !== "object" || !state.att || Array.isArray(state.att)) state.att = {};
@@ -337,6 +377,13 @@ function renderTeam() {
     <div id="matches"></div>
     <dialog class="sheet" id="group-dlg" aria-labelledby="group-title"></dialog>`;
   $("#group-dlg").addEventListener("click", onGroupClick);
+  $("#group-dlg").addEventListener("keydown", (e) => { // Enter verstuurt het blad
+    if (e.key !== "Enter" || !e.target.matches("input")) return;
+    e.preventDefault();
+    const dlg = e.currentTarget;
+    const go = e.target.id === "g-code" || $("#g-code")?.value.trim() ? "#g-join" : $("#g-rename") ? "#g-rename" : "#g-create";
+    dlg.querySelector(go)?.click();
+  });
 
   $("#fav").addEventListener("click", () => {
     state.favs = isFav ? state.favs.filter((k) => k !== state.active) : [...state.favs, state.active];
@@ -458,12 +505,14 @@ function openGroupDialog(prefill = "") {
   if (!dlg.open) (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
 }
 
-async function afterGroupChange() {
+// Na maken, deelnemen of wijzigen: blad sluiten en meteen de nieuwe stand tonen; delen gebeurt op de achtergrond.
+function afterGroupChange(reopen = false) {
   $("#group-dlg")?.close?.();
-  others = null;
-  renderMatches();
-  await Promise.all(upcomingMine().map(pushMine)).catch(() => {});
-  loadOthers();
+  resetShared();
+  refreshShared();
+  if (reopen) openGroupDialog();
+  else $("#g-open")?.focus();
+  Promise.all(upcomingMine().map(pushMine)).catch(() => toast("Delen met je team is niet gelukt. Je keuzes staan wel op dit toestel.")).then(loadOthers);
 }
 
 // Eén knop in het blad: toont een fout in het blad zelf.
@@ -490,8 +539,7 @@ function onGroupClick(e) {
     await shared.createGroup(code, name);
     state.name = name; state.groups[state.active] = code; save();
     toast("Groep gemaakt. Deel de code met je team.");
-    await afterGroupChange();
-    openGroupDialog();
+    afterGroupChange(true);
   });
   else if (id === "g-join") groupAction(btn, async (name) => {
     const code = shared.cleanCode($("#g-code").value);
@@ -500,14 +548,14 @@ function onGroupClick(e) {
     await shared.joinGroup(code, name);
     state.name = name; state.groups[state.active] = code; save();
     toast("Je doet mee met de groep.");
-    await afterGroupChange();
+    afterGroupChange();
   });
   else if (id === "g-rename") groupAction(btn, async (name) => {
     if (!name) throw new Error("name");
     await shared.rename(groupOf(), name);
     state.name = name; save();
     toast("Naam opgeslagen.");
-    await afterGroupChange();
+    afterGroupChange();
   });
   else if (id === "g-copy" || id === "g-link") {
     const code = groupOf();
@@ -516,11 +564,12 @@ function onGroupClick(e) {
   } else if (id === "g-leave") groupAction(btn, async () => {
     if (!confirm("Groep verlaten? Je keuzes verdwijnen uit de groep; op dit toestel blijven ze staan.")) return;
     const code = groupOf();
-    await shared.leaveGroup(code, (state.matches || []).map((m) => m.i));
+    await shared.leaveGroup(code);
     delete state.groups[state.active]; save();
-    others = null;
+    resetShared();
     dlg.close();
-    renderMatches();
+    refreshShared();
+    $("#g-open")?.focus();
   });
 }
 
@@ -690,6 +739,16 @@ async function renderClub() {
   });
 }
 
+let pendingCode = ""; // code uit een uitnodigingslink die wacht tot er een team gekozen is
+
+function offerPendingJoin() {
+  if (!pendingCode || !shared.enabled || !state.active || state.searching) return;
+  const code = pendingCode;
+  pendingCode = "";
+  if (groupOf()) return toast("Je zit al in een groep voor dit team.");
+  openGroupDialog(showCode(code));
+}
+
 function selectTeam(key, makeFav = true) {
   state.active = key;
   state.club = null;
@@ -702,6 +761,7 @@ function selectTeam(key, makeFav = true) {
   render();
   $("#team-name")?.focus({ preventScroll: true });
   if (added) toast("Opgeslagen als je team (ster). Tik op de ster om te verwijderen.");
+  offerPendingJoin();
 }
 
 function render() {
@@ -717,7 +777,8 @@ function render() {
   state.poules = [];
   state.tables = null;
   state.error = "";
-  others = null;
+  resetShared();
+  editing = null;
   renderTeam();
   loadMatches();
 }
@@ -732,11 +793,16 @@ async function main() {
     return;
   }
   render();
-  // Link met #groep=CODE: open het deelnemen-blad met de code al ingevuld.
+  // Link met #groep=CODE: open het deelnemen-blad met de code al ingevuld (bij een nieuw toestel zodra je een team kiest).
   const joinCode = shared.enabled && /^#groep=([A-Za-z0-9]+)$/.exec(location.hash)?.[1];
   if (joinCode) {
     history.replaceState(null, "", location.pathname + location.search);
-    if (state.active && !state.searching && !groupOf()) openGroupDialog(showCode(shared.cleanCode(joinCode)));
+    const code = shared.cleanCode(joinCode);
+    if (shared.validCode(code)) {
+      pendingCode = code;
+      if (!state.active) toast("Kies eerst je team; daarna kun je deelnemen met de code.");
+      offerPendingJoin();
+    }
   }
 }
 

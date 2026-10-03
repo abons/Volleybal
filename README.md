@@ -38,7 +38,7 @@ Instellen:
 
 Gegevens: `groups/<code>` (alleen `by` en `created`), `groups/<code>/members/<uid>` (naam) en `groups/<code>/rsvp/<wedstrijd>__<uid>`
 (naam, keuze, wedstrijd, starttijd). Verlaat je een groep, dan verwijdert de app je lid-document en je keuzes voor de geladen wedstrijden.
-Oude documenten en groepen ruimt de app niet op; verwijder ze desgewenst in de console. Iedereen kan groepen aanmaken.
+De app leest alleen keuzes voor aankomende wedstrijden. Oude documenten en groepen ruimt de app niet op; verwijder ze desgewenst in de console. Iedereen kan anoniem inloggen en groepen aanmaken: zet in de Google Cloud-console een budgetalarm en overweeg App Check.
 
 ## Hoe het werkt
 

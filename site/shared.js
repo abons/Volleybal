@@ -22,18 +22,29 @@ async function post(url, body) {
   return res.json();
 }
 
-// Anoniem inloggen (eenmalig per toestel) en de sleutel ververs je vanzelf.
-async function token() {
-  if (session && session.exp > Date.now() + 60e3) return session.idToken;
+// Anoniem inloggen (eenmalig per toestel); de sleutel ververs je vanzelf.
+// Alleen bij een ongeldig of verlopen refresh-token (HTTP 400) maken we een nieuwe anonieme gebruiker: bij een
+// netwerkfout of serverfout geven we de fout door, anders raak je ongemerkt je groep kwijt.
+let pending = null; // lopende inlog of verversing, zodat gelijktijdige aanroepen één uid delen
+
+async function login() {
   if (session?.refreshToken) {
     try {
       const j = await post(`https://securetoken.googleapis.com/v1/token?key=${FIREBASE.apiKey}`, { grant_type: "refresh_token", refresh_token: session.refreshToken });
       keep({ idToken: j.id_token, refreshToken: j.refresh_token, uid: j.user_id, exp: Date.now() + Number(j.expires_in) * 1000 });
-      return session.idToken;
-    } catch { /* val terug op een nieuwe anonieme login */ }
+      return;
+    } catch (e) {
+      if (e.message !== "HTTP 400") throw e;
+    }
   }
   const j = await post(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE.apiKey}`, { returnSecureToken: true });
   keep({ idToken: j.idToken, refreshToken: j.refreshToken, uid: j.localId, exp: Date.now() + Number(j.expiresIn) * 1000 });
+}
+
+async function token() {
+  if (session && session.exp > Date.now() + 60e3) return session.idToken;
+  pending ||= login().finally(() => { pending = null; });
+  await pending;
   return session.idToken;
 }
 
@@ -42,8 +53,12 @@ export async function myUid() {
   return session.uid;
 }
 
-async function call(path, init = {}) {
+async function call(path, init = {}, retried = false) {
   const res = await fetch(DOCS + path, { ...init, headers: { "Content-Type": "application/json", Authorization: `Bearer ${await token()}` } });
+  if (res.status === 401 && !retried) { // token afgewezen: één keer verversen en opnieuw proberen
+    if (session) session.exp = 0;
+    return call(path, init, true);
+  }
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.status === 204 ? null : res.json();
 }
@@ -81,14 +96,25 @@ export async function joinGroup(code, name) {
   await writeMember(code, name);
 }
 
-export const rename = writeMember;
+// Query binnen een groep: Map-achtige lijst van velden.
+async function query(code, where) {
+  const rows = await call(`/groups/${code}:runQuery`, { method: "POST", body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "rsvp" }], where, limit: 1000 } }) });
+  return rows.filter((r) => r.document).map((r) => ({ id: r.document.name.split("/").pop(), ...plain(r.document) }));
+}
+const gone = (e) => { if (!/404/.test(e.message)) throw e; };
+const mine = async (code) => query(code, { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: str(await myUid()) } });
 
-// Verlaat de groep: mijn lidmaatschap en mijn keuzes voor de opgegeven wedstrijden weghalen.
-export async function leaveGroup(code, matchIds) {
+// Naam wijzigen: lid-document en al mijn keuzes in de groep krijgen de nieuwe naam.
+export async function rename(code, name) {
+  await writeMember(code, name);
+  await Promise.all((await mine(code)).map((r) => call(`/groups/${code}/rsvp/${r.id}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid: r.uid, match: r.match, start: r.start, name, status: r.status }) }) })));
+}
+
+// Verlaat de groep: eerst mijn lidmaatschap (faalt dat, dan blijft alles zoals het was), daarna mijn keuzes opruimen.
+export async function leaveGroup(code) {
   const uid = await myUid();
-  const gone = (e) => { if (!/404/.test(e.message)) throw e; };
-  await Promise.all(matchIds.map((m) => call(`/groups/${code}/rsvp/${san(m)}__${uid}`, { method: "DELETE" }).catch(gone)));
   await call(`/groups/${code}/members/${uid}`, { method: "DELETE" }).catch(gone);
+  try { await Promise.all((await mine(code)).map((r) => call(`/groups/${code}/rsvp/${r.id}`, { method: "DELETE" }).catch(gone))); } catch { /* best effort */ }
 }
 
 async function listAll(path) {
@@ -112,10 +138,12 @@ export async function put({ code, match, start, name, status }) {
   return call(path, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid, match, start, name, status }) }) });
 }
 
-// Alle keuzes in de groep, per wedstrijd: Map(match -> [{ uid, name, status }]).
+// Keuzes in de groep voor aankomende wedstrijden (start >= gisteren), per wedstrijd: Map(match -> [{ uid, name, status }]).
 export async function rsvps(code) {
+  const d = new Date(Date.now() - 864e5);
+  const from = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
   const out = new Map();
-  for (const r of await listAll(`/groups/${code}/rsvp`)) {
+  for (const r of await query(code, { fieldFilter: { field: { fieldPath: "start" }, op: "GREATER_THAN_OR_EQUAL", value: str(from) } })) {
     if (!r.match) continue;
     if (!out.has(r.match)) out.set(r.match, []);
     out.get(r.match).push({ uid: r.uid, name: r.name || "?", status: r.status });
