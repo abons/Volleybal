@@ -166,25 +166,16 @@ dialog.sheet:not([open]) { display: none; }
 .vs { flex-wrap: wrap; }
 .share { margin: 4px 0 0; }
 .att-box { margin-top: 2px; }
-.past .att-box { display: none; }
 .att-now { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; padding: 4px 0; border: 0; border-radius: 0; background: none; color: var(--muted); font-size: .9rem; font-weight: 500; justify-content: flex-start; text-align: left; white-space: nowrap; }
-.att-now .cta { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-.dot { width: 1rem; height: 1rem; border-radius: 50%; display: inline-grid; place-items: center; font-size: .65rem; line-height: 1; font-weight: 800; color: var(--accent-text); flex: none; }
+.dot { background: var(--c); width: 1rem; height: 1rem; border-radius: 50%; display: inline-grid; place-items: center; font-size: .65rem; line-height: 1; font-weight: 800; color: var(--accent-text); flex: none; }
 .who { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 4px 0 4px; font-size: .8rem; line-height: 1.35; color: var(--muted); }
 .who-yes > span:first-child { color: var(--home); } .who-maybe > span:first-child { color: var(--away); } .who-no > span:first-child { color: var(--loss); }
 .who span[aria-hidden] { font-weight: 800; }
-.att { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; margin-top: 4px; }
-.att button { min-height: 44px; padding: 4px 2px; border: 0; border-radius: 0; font-size: .9rem; }
-.att button + button { border-left: 1px solid var(--line-strong); }
-/* Tijdens het kiezen krijgen de drie knoppen de volle rijbreedte (onder de datum door) */
-.match:has(.att) .when { align-self: start; }
-.att { margin-left: calc(-5.4rem - 10px); width: calc(100% + 5.4rem + 10px); }
 
 /* Rij: datum en agenda-icoon staan bij de eerste regel (tegenstander), niet in het midden van de rij */
 .match { align-items: start; }
 .when { padding-top: 2px; }
 .match button.small.icon { margin-top: -6px; }
-.match:has(.att) .when { align-self: auto; }
 .vs { overflow-wrap: anywhere; }
 
 /* Groepsblad */
@@ -201,18 +192,27 @@ dialog.sheet .notice { margin: 8px 0 0; }
 .modebar .share { margin: 0; padding: 4px 0; }
 .modebar button { flex: none; margin-left: auto; min-height: 40px; border-color: var(--accent); color: var(--accent); }
 .modebar button.on { background: var(--accent); color: var(--accent-text); }
-/* Namen onder de open keuzeknoppen: geen overlap, links uitgelijnd met de knoppen */
-.att + .who { margin: 6px 0 4px calc(-5.4rem - 10px); }
 
 /* Kleur: Ja groen, Misschien oranje, Nee rood. Glyph + tekst dragen de betekenis; kleur is extra. */
 .att-yes { --c: var(--home); } .att-maybe { --c: var(--away); } .att-no { --c: var(--loss); }
-.att button { color: var(--text); border-bottom: 3px solid var(--c); }
-.att button::before { content: attr(data-g) "\00a0"; color: var(--c); font-weight: 800; }
+
+/* De drie keuzeknoppen: glyph + tekst, gekleurde onderrand; gekozen = tint en rand */
+.att { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line-strong); border-radius: 10px; overflow: hidden; margin-top: 4px; }
+.att button { min-height: 44px; padding: 4px 0; border: 0; border-bottom: 3px solid var(--c); border-radius: 0; color: var(--text); font-size: .85rem; white-space: nowrap; }
+.att button + button { border-left: 1px solid var(--line-strong); }
+.att button::before { content: attr(data-g) "\2009"; color: var(--c); font-weight: 800; }
+.att + .who { margin: 6px 0 4px; }
+
+/* Tijdens het kiezen krijgen de knoppen de volle rijbreedte: de tekstkolom wordt los in het raster gelegd */
+.match:has(.att) { row-gap: 0; }
+.match:has(.att) .what { display: contents; }
+.match:has(.att) .when { grid-column: 1; grid-row: 1 / span 2; }
+.match:has(.att) .vs { grid-column: 2; grid-row: 1; }
+.match:has(.att) .where { grid-column: 2; grid-row: 2; }
+.match:has(.att) button.small.icon { grid-column: 3; grid-row: 1 / span 2; }
+.match:has(.att) .att-box { grid-column: 1 / -1; grid-row: 3; margin-top: 8px; }
 .att button[aria-pressed=true] { font-weight: 700; background: var(--soft); background: color-mix(in srgb, var(--c) 22%, var(--card)); box-shadow: inset 0 0 0 2px var(--c); }
 .att-now.set { position: relative; min-height: 0; height: 26px; margin: 8px 0 0; color: var(--text); font-size: .8rem; font-weight: 600; gap: 5px; padding: 0 10px 0 4px; border-radius: 999px; background: var(--soft); background: color-mix(in srgb, var(--c) 14%, var(--card)); box-shadow: inset 0 0 0 1px var(--c); }
 /* Zichtbare pill is 26px; onzichtbare laag maakt het tikdoel 44px hoog */
 .att-now.set::after { content: ""; position: absolute; inset: -9px -6px; }
 .att-now.set + .who { margin-top: 8px; }
-.dot { background: var(--c); }
-.att button { padding-left: 0; padding-right: 0; font-size: .85rem; white-space: nowrap; }
-.att button::before { content: attr(data-g) "\2009"; }

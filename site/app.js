@@ -78,11 +78,13 @@ function refreshShared() {
   const active = document.activeElement;
   const focusBox = active?.classList?.contains("att-now") ? active.closest("[data-box]")?.dataset.box : null;
   const focusLine = active?.id === "g-open";
+  const focusAtt = active?.dataset?.att ? { m: active.dataset.for, k: active.dataset.att } : null; // keuzeknop in de Geef-door-modus
   for (const box of root.querySelectorAll("[data-box]")) {
     if (box.dataset.box === editing) continue;
     const m = (state.matches || []).find((x) => x.i === box.dataset.box);
     if (m) box.innerHTML = attInner(m);
     if (box.dataset.box === focusBox) box.querySelector(".att-now")?.focus();
+    if (focusAtt && box.dataset.box === focusAtt.m) box.querySelector(`[data-att="${focusAtt.k}"]`)?.focus();
   }
   const focusMode = active?.id === "att-mode";
   const bar = root.querySelector(".modebar");
@@ -842,8 +844,9 @@ async function main() {
     try { team = decodeURIComponent(hash[2] || ""); } catch { /* ongeldige link */ }
     if (shared.validCode(code)) {
       pendingCode = code;
-      if (teamIndex.has(team) && !state.groups[team]) {
-        if (state.active === team && !state.searching) offerPendingJoin();
+      if (teamIndex.has(team)) { // de link hoort bij een team: dat team kiezen
+        if (state.groups[team]) { pendingCode = ""; toast("Je zit al in de groep van dit team."); }
+        else if (state.active === team && !state.searching) offerPendingJoin();
         else selectTeam(team);
       } else if (!state.active) {
         toast("Kies eerst je team; daarna kun je deelnemen met de code.");
