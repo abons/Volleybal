@@ -6,6 +6,9 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
 (per wedstrijd of voor het hele team) in je agenda, en bekijk uitslagen en de stand. Geen account, geen login, geen tracking, geen dependencies.
 
 - **Favoriet**: wordt in `localStorage` op je eigen toestel bewaard.
+- **Aanwezigheid**: bij elke komende wedstrijd kies je *Ja*, *Misschien* of *Nee* (nogmaals tikken wist je keuze). Dit staat nu alleen
+  op je eigen toestel (`localStorage`, sleutel `att`). Teamgenoten zien elkaars keuze nog niet: daarvoor is een gedeelde opslag nodig.
+  Alle code loopt via het object `attendance` in `site/app.js`, zodat die later vervangen kan worden.
 - **Per wedstrijd in je agenda**: de app maakt in de browser een `.ics`-bestand van die ene wedstrijd.
   De UID is die van Nevobo, dus opnieuw toevoegen werkt een bestaande afspraak bij.
 - **Hele team in je agenda**: een `webcal://`-abonnement op Nevobo's eigen `programma.ics` van het team.
@@ -105,6 +108,7 @@ De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Ac
 
 ## Ideeën voor uitbreiding
 
+- Aanwezigheid delen met teamgenoten (Firebase, Supabase of een kleine Cloudflare Worker achter `attendance`), met per wedstrijd een overzicht wie komt.
 - Meerdere favoriete teams naast elkaar (nu: wisselen met knoppen), of een startscherm met de eerstvolgende wedstrijd van al je teams.
 - Herinnering of alarm in het `.ics`-bestand (bijvoorbeeld een uur voor de wedstrijd).
 - Eigen teams groeperen, delen via een link (`#team=…`) of zoeken op hal en regio.

@@ -25,10 +25,28 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
 }
 function save() {
-  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active })); } catch { /* privémodus */ }
+  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att })); } catch { /* privémodus */ }
 }
-const state = { favs: [], active: null, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
+const state = { favs: [], active: null, att: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
+
+// ---- Aanwezigheid: per wedstrijd ja / misschien / nee ----
+// Nu alleen op dit toestel. Alle code die de status leest of zet loopt via `attendance`;
+// een gedeelde opslag voor teamgenoten hoeft dus alleen dit object te vervangen.
+const STATUS = [["yes", "Ja", "Ik ben erbij"], ["maybe", "Misschien", "Misschien erbij"], ["no", "Nee", "Ik ben er niet bij"]];
+const attendance = {
+  get: (id) => state.att[id]?.[0] || null,
+  set(id, status, start) {
+    if (status) state.att[id] = [status, start]; else delete state.att[id];
+    save();
+  },
+  // Ruim oude wedstrijden (meer dan 30 dagen geleden) op.
+  prune() {
+    const limit = Date.now() - 30 * 864e5;
+    for (const [id, v] of Object.entries(state.att)) if (!Array.isArray(v) || !(parseDt(v[1]) >= limit)) delete state.att[id];
+  },
+};
+if (typeof state.att !== "object" || !state.att || Array.isArray(state.att)) state.att = {};
 
 // ---- Teamlijst ----
 let teamIndex = null; // key -> team
@@ -196,14 +214,21 @@ function matchRow(m, team) {
   const d = parseDt(m.s);
   const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
   return `
-    <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}${isToday(d) ? " today" : ""}">
+    <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}${isToday(d) ? " today" : ""}" data-id="${esc(m.i)}">
       <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(dayLabel(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what">
         <div class="vs">${opp ? `${isHome ? "" : `<span class="tag away">uit</span>`}<span>${esc(opp)}</span>` : `<span>${esc(m.t)}</span>`}</div>
         ${place}
       </div>
       <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda">${ico.calPlus}</button>
+      ${attendanceHtml(m)}
     </div>`;
+}
+
+function attendanceHtml(m) {
+  const cur = attendance.get(m.i);
+  return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, label, long]) =>
+    `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${label}</button>`).join("")}</div>`;
 }
 
 function renderTeam() {
@@ -284,6 +309,14 @@ function renderTeam() {
   }));
   view.querySelectorAll("[data-switch]").forEach((b) => b.addEventListener("click", () => selectTeam(b.dataset.switch, false)));
   $("#matches").addEventListener("click", (e) => {
+    const a = e.target.closest("[data-att]");
+    const am = a && (state.matches || []).find((x) => x.i === a.dataset.for);
+    if (am) { // opnieuw tikken op de gekozen knop haalt je keuze weg
+      attendance.set(am.i, attendance.get(am.i) === a.dataset.att ? null : a.dataset.att, am.s);
+      const group = a.closest(".att");
+      group.querySelectorAll("[data-att]").forEach((x) => x.setAttribute("aria-pressed", String(attendance.get(am.i) === x.dataset.att)));
+      return;
+    }
     const b = e.target.closest("[data-add]");
     const m = b && (state.matches || []).find((x) => x.i === b.dataset.add);
     if (!m) return;
@@ -506,6 +539,7 @@ function render() {
 }
 
 async function main() {
+  attendance.prune();
   view.innerHTML = `<p class="muted">Teams laden…</p>`;
   try { await loadTeams(); }
   catch {

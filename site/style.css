@@ -160,3 +160,15 @@ dialog.sheet:not([open]) { display: none; }
 .table-wrap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .legend { margin: 8px 0 0; }
 .back { margin: -6px 0 6px; }
+
+/* Aanwezigheid */
+.att { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.att button { min-height: 44px; padding: 6px 4px; font-size: .9rem; border-color: var(--line-strong); }
+.att button[aria-pressed=true] { font-weight: 700; color: var(--accent-text); border-color: transparent; }
+.att button[aria-pressed=true]::before { content: "\2713\00a0"; }
+.att .att-yes[aria-pressed=true] { background: var(--home); }
+.att .att-maybe[aria-pressed=true] { background: var(--away); }
+.att .att-no[aria-pressed=true] { background: var(--loss); }
+.att .att-no[aria-pressed=true]::before { content: "\2715\00a0"; }
+.att .att-maybe[aria-pressed=true]::before { content: "?\00a0"; }
+.past .att { display: none; }
