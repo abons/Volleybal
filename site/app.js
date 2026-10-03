@@ -66,6 +66,8 @@ function parseDt(s) {
 }
 const fmt = (opts) => new Intl.DateTimeFormat("nl-NL", { timeZone: TZ, ...opts });
 const fDay = fmt({ weekday: "short", day: "numeric", month: "short" });
+const fKey = fmt({ year: "numeric", month: "numeric", day: "numeric" });
+const isToday = (d) => fKey.format(d) === fKey.format(new Date());
 const fTime = fmt({ hour: "2-digit", minute: "2-digit" });
 
 // ---- iCalendar maken ----
@@ -179,8 +181,8 @@ function matchRow(m, team) {
   const d = parseDt(m.s);
   const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
   return `
-    <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}">
-      <div class="when"><div class="d">${esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
+    <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}${isToday(d) ? " today" : ""}">
+      <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what">
         <div class="vs">${opp ? `<span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span>${esc(opp)}` : esc(m.t)}</div>
         ${place}
@@ -410,8 +412,8 @@ async function renderClub() {
     const [home, away] = m.t.split(" - ");
     const d = parseDt(m.s);
     const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
-    return `<div class="match club-match">
-      <div class="when"><div class="d">${esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
+    return `<div class="match club-match${isToday(d) ? " today" : ""}">
+      <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what"><div class="vs">${esc(home)}</div><div class="muted">tegen ${esc(away || "?")}</div>${place}</div>
       <button class="small" data-add="${esc(m.i)}" aria-label="Zet ${esc(m.t)} in je agenda">+ Agenda</button>
     </div>`;
