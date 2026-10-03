@@ -3,7 +3,7 @@
 **Live: https://abons.github.io/Volleybal/**
 
 Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en zet wedstrijden
-(per wedstrijd of voor het hele team) in je agenda. Geen account, geen login, geen tracking, geen dependencies.
+(per wedstrijd of voor het hele team) in je agenda, en bekijk uitslagen en de stand. Geen account, geen login, geen tracking, geen dependencies.
 
 - **Favoriet**: wordt in `localStorage` op je eigen toestel bewaard.
 - **Per wedstrijd in je agenda**: de app maakt in de browser een `.ics`-bestand van die ene wedstrijd.
@@ -17,15 +17,19 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
 ## Hoe het werkt
 
 `api.nevobo.nl` stuurt geen CORS-headers mee, dus de browser mag de API niet zelf aanroepen. Daarom haalt
-`scripts/build.mjs` (in GitHub Actions, twee keer per dag) alle teams en hun wedstrijdprogramma op en
+`scripts/build.mjs` (in GitHub Actions, twee keer per dag) alle teams, programma's, uitslagen en standen op en
 publiceert die als statische JSON naast de app op GitHub Pages:
 
 ```
-data/teams.json          alle teams: [sleutel, naam, vereniging, plaats, standpositie]
-data/t/<club>-<soort>-<nr>.json   de wedstrijden van één team
+data/teams.json                    alle teams: [sleutel, naam, vereniging, plaats, standpositie]
+data/t/<club>-<soort>-<nr>.json    per team: m = komende wedstrijden, r = uitslagen met setstanden, p = poules
+data/p/<poule>.json                de stand van één poule
 ```
 
-De zoekfunctie draait lokaal op `teams.json`; de API zelf kan niet filteren op naam.
+De zoekfunctie draait lokaal op `teams.json`; de API zelf kan niet filteren op naam. Programma's komen uit
+Nevobo's `programma.ics` per team; uitslagen en standen uit twee grote lijsten (`/competitie/wedstrijden?status=gespeeld`
+en `/competitie/pouleindelingen`) die in één keer worden ingelezen en over de teams worden verdeeld.
+Poules waarin nog niets gespeeld is, krijgen geen stand.
 
 ## Eenmalig instellen
 
