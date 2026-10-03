@@ -113,3 +113,5 @@ table.stand { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .stand tr.me td { font-weight: 700; background: var(--soft); }
 .stand tr.me td:first-child { box-shadow: inset 3px 0 0 var(--accent); padding-left: 6px; }
 abbr { text-decoration: none; }
+.head-btns { display: flex; flex: none; margin: -6px -6px 0 0; }
+.head-btns button.star { font-size: 1.5rem; }

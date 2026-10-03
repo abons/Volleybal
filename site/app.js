@@ -201,7 +201,10 @@ function renderTeam() {
           <h2 id="team-name" tabindex="-1">${esc(team.naam)}</h2>
           <p class="muted">${esc(team.club)}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand) : ""}</p>
         </div>
-        <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${isFav ? "★" : "☆"}</button>
+        <div class="head-btns">
+          <button class="star" id="change" title="Ander team kiezen" aria-label="Ander team kiezen">⇄</button>
+          <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${isFav ? "★" : "☆"}</button>
+        </div>
       </div>
       <div class="actions">
         <div class="main-action">
@@ -211,7 +214,6 @@ function renderTeam() {
         </div>
         <p class="muted hint">Nieuwe en gewijzigde wedstrijden komen vanzelf mee.</p>
       </div>
-      <button class="link" id="change">Ander team kiezen ›</button>
     </section>
     <div class="tabs" role="group" aria-label="Wat wil je zien?">
       ${[["programma", "Programma"], ["uitslagen", "Uitslagen"], ["stand", "Stand"]].map(([k, l]) => `<button data-tab="${k}" aria-pressed="${state.tab === k}">${l}</button>`).join("")}
