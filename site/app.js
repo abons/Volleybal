@@ -527,10 +527,14 @@ function openGroupDialog(prefill = "") {
 }
 
 // Na maken, deelnemen of wijzigen: blad sluiten en meteen de nieuwe stand tonen; delen gebeurt op de achtergrond.
-function afterGroupChange(reopen = false) {
+function afterGroupChange(reopen = false, enter = false) {
   $("#group-dlg")?.close?.();
   resetShared();
-  refreshShared();
+  if (enter) { // na maken of deelnemen meteen de keuzeknoppen bij alle wedstrijden openen
+    entering = true;
+    editing = null;
+    renderMatches();
+  } else refreshShared();
   if (reopen) openGroupDialog();
   else $("#g-open")?.focus();
   Promise.all(upcomingMine().map(pushMine)).catch(() => toast("Delen met je team is niet gelukt. Je keuzes staan wel op dit toestel.")).then(loadOthers);
@@ -560,7 +564,7 @@ function onGroupClick(e) {
     await shared.createGroup(code, name);
     state.name = name; state.groups[state.active] = code; save();
     toast("Groep gemaakt. Deel de code met je team.");
-    afterGroupChange(true);
+    afterGroupChange(true, true);
   });
   else if (id === "g-join") groupAction(btn, async (name) => {
     const code = shared.cleanCode($("#g-code").value);
@@ -568,8 +572,8 @@ function onGroupClick(e) {
     if (!shared.validCode(code)) throw new Error("code");
     await shared.joinGroup(code, name);
     state.name = name; state.groups[state.active] = code; save();
-    toast("Je doet mee met de groep.");
-    afterGroupChange();
+    toast("Je doet mee met de groep. Geef je aanwezigheid door.");
+    afterGroupChange(false, true);
   });
   else if (id === "g-rename") groupAction(btn, async (name) => {
     if (!name) throw new Error("name");
