@@ -35,11 +35,11 @@ jobs:
         run: node scripts/build.mjs
         env:
           FORCE: ${{ github.event_name != 'push' && '1' || '' }}
-      - name: Samenvatting
-        run: cat _data/summary.txt
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
+      - name: Samenvatting
+        run: cat _data/summary.txt
 
   deploy:
     needs: build
