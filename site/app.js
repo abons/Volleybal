@@ -206,11 +206,8 @@ function renderTeam() {
       <div class="actions">
         <div class="main-action">
           <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}"><span aria-hidden="true">📅</span> Alle wedstrijden in je agenda</a>
-          <button id="more-toggle" aria-expanded="false" aria-controls="more-opts" aria-label="Meer opties">⋯</button>
-        </div>
-        <div class="row" id="more-opts" hidden>
-          <button id="all">Download komende wedstrijden</button>
-          <button id="copy">Kopieer link voor je agenda</button>
+          <button id="all" class="icon" title="Download komende wedstrijden" aria-label="Download komende wedstrijden"><span aria-hidden="true">⬇️</span></button>
+          <button id="copy" class="icon" title="Kopieer link voor je agenda" aria-label="Kopieer link voor je agenda"><span aria-hidden="true">🔗</span></button>
         </div>
         <p class="muted hint">Nieuwe en gewijzigde wedstrijden komen vanzelf mee.</p>
       </div>
@@ -227,11 +224,6 @@ function renderTeam() {
     renderTeam();
     $("#fav").focus();
     toast(isFav ? "Verwijderd uit je teams" : "Team bewaard op dit toestel");
-  });
-  $("#more-toggle").addEventListener("click", (e) => {
-    const open = e.currentTarget.getAttribute("aria-expanded") !== "true";
-    e.currentTarget.setAttribute("aria-expanded", String(open));
-    $("#more-opts").hidden = !open;
   });
   $("#change").addEventListener("click", () => { state.searching = true; state.query = ""; render(); });
   $("#all").addEventListener("click", () => {
