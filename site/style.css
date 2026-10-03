@@ -87,7 +87,8 @@ h2:focus { outline: none; }
 .hint { margin: 0; text-align: center; }
 .main-action { display: flex; gap: 8px; }
 .main-action .btn { flex: 1; min-width: 0; }
-.main-action button.icon { min-width: 44px; padding: 10px 12px; font-size: 1.15rem; line-height: 1; }
+.main-action { align-items: stretch; }
+.main-action .icon { min-width: 44px; padding: 10px 12px; font-size: 1.15rem; line-height: 1; }
 .hint { font-size: .85rem; }
 button.link { border: 0; background: none; color: var(--accent); padding: 0; min-height: 36px; margin-top: 4px; font-weight: 500; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }

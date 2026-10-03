@@ -208,7 +208,7 @@ function renderTeam() {
       </div>
       <div class="actions">
         <div class="main-action">
-          <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}"><span aria-hidden="true">📅</span> Alle wedstrijden in je agenda</a>
+          <a class="btn primary icon" id="subscribe" href="${esc(teamUrls(state.active).web)}" title="Alle wedstrijden in je agenda" aria-label="Alle wedstrijden in je agenda"><span aria-hidden="true">📅</span></a>
           <button id="all" class="icon" title="Download komende wedstrijden" aria-label="Download komende wedstrijden"><span aria-hidden="true">⬇️</span></button>
           <button id="copy" class="icon" title="Kopieer link voor je agenda" aria-label="Kopieer link voor je agenda"><span aria-hidden="true">🔗</span></button>
         </div>
