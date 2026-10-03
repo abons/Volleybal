@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{db}/documents {
+    // Eén document per speler per wedstrijd: id = <wedstrijd>__<uid van de anonieme gebruiker>.
+    match /rsvp/{id} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && id.matches('.*__' + request.auth.uid)
+        && request.resource.data.keys().hasOnly(['uid', 'team', 'match', 'start', 'name', 'status'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.status in ['yes', 'maybe', 'no']
+        && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30
+        && request.resource.data.team is string && request.resource.data.team.size() < 80
+        && request.resource.data.match is string && request.resource.data.match.size() < 200
+        && request.resource.data.start is string && request.resource.data.start.size() < 20;
+      allow delete: if request.auth != null && id.matches('.*__' + request.auth.uid);
+    }
+  }
+}

@@ -172,3 +172,7 @@ dialog.sheet:not([open]) { display: none; }
 .att .att-no[aria-pressed=true]::before { content: "\2715\00a0"; }
 .att .att-maybe[aria-pressed=true]::before { content: "?\00a0"; }
 .past .att { display: none; }
+.who { grid-column: 1 / -1; font-size: .9rem; display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: -2px; }
+.who-yes b { color: var(--home); } .who-maybe b { color: var(--away); } .who-no b { color: var(--loss); }
+.past .who { display: none; }
+.share { margin: 4px 0 0; }

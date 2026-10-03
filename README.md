@@ -6,9 +6,9 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
 (per wedstrijd of voor het hele team) in je agenda, en bekijk uitslagen en de stand. Geen account, geen login, geen tracking, geen dependencies.
 
 - **Favoriet**: wordt in `localStorage` op je eigen toestel bewaard.
-- **Aanwezigheid**: bij elke komende wedstrijd kies je *Ja*, *Misschien* of *Nee* (nogmaals tikken wist je keuze). Dit staat nu alleen
-  op je eigen toestel (`localStorage`, sleutel `att`). Teamgenoten zien elkaars keuze nog niet: daarvoor is een gedeelde opslag nodig.
-  Alle code loopt via het object `attendance` in `site/app.js`, zodat die later vervangen kan worden.
+- **Aanwezigheid**: bij elke komende wedstrijd kies je *Ja*, *Misschien* of *Nee* (nogmaals tikken wist je keuze). Je keuze staat
+  op je eigen toestel. Is Firebase ingesteld (zie *Aanwezigheid delen*), dan vraagt de app eenmalig je naam en zien teamgenoten
+  per wedstrijd wie komt. Geen account: Firebase logt het toestel anoniem in.
 - **Per wedstrijd in je agenda**: de app maakt in de browser een `.ics`-bestand van die ene wedstrijd.
   De UID is die van Nevobo, dus opnieuw toevoegen werkt een bestaande afspraak bij.
 - **Hele team in je agenda**: een `webcal://`-abonnement op Nevobo's eigen `programma.ics` van het team.
@@ -16,6 +16,20 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
   en voeg hem toe als agenda-abonnement (Google Agenda → Andere agenda's → Via URL).
 - **Installeren als app**: op Android verschijnt onderaan de knop “Zet op je beginscherm als app” (of kies in Chrome ⋮ → *App installeren*).
   Op iPhone/iPad: Safari → Deel → *Zet op beginscherm*. Daarna werkt hij ook offline.
+
+## Aanwezigheid delen (Firebase, eenmalig instellen)
+
+Zonder instellingen werkt alles lokaal. Om met teamgenoten te delen:
+
+1. [Firebase-console](https://console.firebase.google.com) → project maken → *Build → Authentication → Sign-in method* → **Anonymous** aanzetten.
+2. *Build → Firestore Database* → database maken (productiemodus). Plak daarna onder *Rules* de inhoud van `firestore.rules` en publiceer.
+3. *Project settings → Your apps → Web* (`</>`) → app registreren. Kopieer `apiKey` en `projectId` naar `site/firebase-config.js`.
+4. Aanbevolen: Google Cloud-console → *APIs & Services → Credentials* → die API-key beperken tot de HTTP-referrer `https://abons.github.io/*`.
+5. Commit naar `main`; de site wordt opnieuw gepubliceerd.
+
+De apiKey in de code is geen geheim; de regels bepalen wat mag. Iedereen die een team opent kan de namen en keuzes van dat team zien,
+en je kunt alleen je eigen keuze wijzigen. Gegevens staan in de verzameling `rsvp` (één document per speler per wedstrijd: naam, keuze,
+team, wedstrijd). Oude documenten ruimt de app niet op; verwijder ze desgewenst in de console.
 
 ## Hoe het werkt
 
@@ -38,6 +52,8 @@ Poules waarin nog niets gespeeld is, krijgen geen stand.
 
 ```
 site/index.html, style.css, app.js   de app (geen framework, geen dependencies, geen build-stap)
+site/shared.js, firebase-config.js    aanwezigheid delen via Firebase (REST, geen SDK)
+firestore.rules                      beveiligingsregels voor Firestore
 site/sw.js                           service worker: offline, nieuwe versie oppakken (BUILD-stempel wordt in de build ingevuld)
 site/manifest.webmanifest, icon-*    installeerbaar als app
 scripts/build.mjs                    haalt data bij Nevobo op en bouwt ./_site
@@ -108,7 +124,7 @@ De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Ac
 
 ## Ideeën voor uitbreiding
 
-- Aanwezigheid delen met teamgenoten (Firebase, Supabase of een kleine Cloudflare Worker achter `attendance`), met per wedstrijd een overzicht wie komt.
+- Live bijwerken van de aanwezigheid (nu ververst die bij openen, na je keuze en als je terugkomt in de app) en opruimen van oude `rsvp`-documenten.
 - Meerdere favoriete teams naast elkaar (nu: wisselen met knoppen), of een startscherm met de eerstvolgende wedstrijd van al je teams.
 - Herinnering of alarm in het `.ics`-bestand (bijvoorbeeld een uur voor de wedstrijd).
 - Eigen teams groeperen, delen via een link (`#team=…`) of zoeken op hal en regio.

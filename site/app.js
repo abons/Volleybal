@@ -1,5 +1,7 @@
 // Volleybal-PWA: team zoeken, favoriet lokaal bewaren, wedstrijden naar je agenda.
 
+import * as shared from "./shared.js";
+
 const NEVOBO = "api.nevobo.nl";
 const TZ = "Europe/Amsterdam";
 const STORE = "volleybal.v1";
@@ -25,14 +27,14 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
 }
 function save() {
-  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att })); } catch { /* privémodus */ }
+  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name })); } catch { /* privémodus */ }
 }
-const state = { favs: [], active: null, att: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
+const state = { favs: [], active: null, att: {}, name: "", ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
 
 // ---- Aanwezigheid: per wedstrijd ja / misschien / nee ----
-// Nu alleen op dit toestel. Alle code die de status leest of zet loopt via `attendance`;
-// een gedeelde opslag voor teamgenoten hoeft dus alleen dit object te vervangen.
+// Je eigen keuze staat altijd op dit toestel. Is Firebase ingesteld (firebase-config.js), dan
+// wordt hij ook met je naam gedeeld, zodat teamgenoten zien wie er komt.
 const STATUS = [["yes", "Ja", "Ik ben erbij"], ["maybe", "Misschien", "Misschien erbij"], ["no", "Nee", "Ik ben er niet bij"]];
 const attendance = {
   get: (id) => state.att[id]?.[0] || null,
@@ -46,6 +48,38 @@ const attendance = {
     for (const [id, v] of Object.entries(state.att)) if (!Array.isArray(v) || !(parseDt(v[1]) >= limit)) delete state.att[id];
   },
 };
+if (typeof state.name !== "string") state.name = "";
+let others = null; // wedstrijd -> keuzes van teamgenoten [{ uid, name, status }]
+let myUid = "";
+
+async function pushMine(m) {
+  if (!shared.enabled || !state.name) return;
+  await shared.put({ team: state.active, match: m.i, start: m.s, name: state.name, status: attendance.get(m.i) });
+}
+
+async function loadOthers() {
+  if (!shared.enabled) return;
+  const key = state.active;
+  try {
+    myUid = await shared.myUid();
+    const map = await shared.team(key);
+    if (state.active !== key) return;
+    others = map;
+    state.shareError = false;
+  } catch { state.shareError = true; }
+  if (state.active === key && !state.searching && !state.club) renderMatches();
+}
+
+// Naam eenmalig vragen (alleen nodig om met teamgenoten te delen).
+function askName(force = false) {
+  if (!shared.enabled || (state.name && !force)) return !!state.name || !shared.enabled;
+  const n = (prompt("Wat is je naam? Teamgenoten zien die bij je keuze.", state.name) || "").trim().slice(0, 30);
+  if (!n) return !!state.name;
+  state.name = n;
+  save();
+  return true;
+}
+
 if (typeof state.att !== "object" || !state.att || Array.isArray(state.att)) state.att = {};
 
 // ---- Teamlijst ----
@@ -225,10 +259,23 @@ function matchRow(m, team) {
     </div>`;
 }
 
+// Wie komt er? Teamgenoten (zonder jezelf) plus jouw eigen keuze met je naam.
+function whoHtml(m) {
+  if (!shared.enabled || !others) return "";
+  const list = (others.get(m.i) || []).filter((o) => o.uid !== myUid);
+  const mine = attendance.get(m.i);
+  if (mine && state.name) list.push({ name: state.name, status: mine });
+  const parts = STATUS.map(([k, label]) => {
+    const names = list.filter((o) => o.status === k).map((o) => o.name).sort((a, b) => a.localeCompare(b, "nl"));
+    return names.length ? `<span class="who-${k}"><b>${label}:</b> ${names.map(esc).join(", ")}</span>` : "";
+  }).filter(Boolean);
+  return parts.length ? parts.join(" ") : `<span class="muted">Nog niemand heeft gereageerd.</span>`;
+}
+
 function attendanceHtml(m) {
   const cur = attendance.get(m.i);
   return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, label, long]) =>
-    `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${label}</button>`).join("")}</div>`;
+    `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${label}</button>`).join("")}</div>${shared.enabled ? `<div class="who" aria-live="polite">${whoHtml(m)}</div>` : ""}`;
 }
 
 function renderTeam() {
@@ -312,9 +359,20 @@ function renderTeam() {
     const a = e.target.closest("[data-att]");
     const am = a && (state.matches || []).find((x) => x.i === a.dataset.for);
     if (am) { // opnieuw tikken op de gekozen knop haalt je keuze weg
-      attendance.set(am.i, attendance.get(am.i) === a.dataset.att ? null : a.dataset.att, am.s);
+      const next = attendance.get(am.i) === a.dataset.att ? null : a.dataset.att;
+      if (next && !askName()) return;
+      attendance.set(am.i, next, am.s);
       const group = a.closest(".att");
       group.querySelectorAll("[data-att]").forEach((x) => x.setAttribute("aria-pressed", String(attendance.get(am.i) === x.dataset.att)));
+      const who = group.parentElement.querySelector(".who");
+      if (who) who.innerHTML = whoHtml(am);
+      pushMine(am).then(loadOthers, () => toast("Delen met je team is niet gelukt. Je keuze staat wel op dit toestel."));
+      return;
+    }
+    if (e.target.closest("#rename")) { // naam wijzigen: alle eigen keuzes opnieuw delen
+      if (!askName(true)) return;
+      renderMatches();
+      Promise.all(upcomingOf(state.matches || []).filter((m) => attendance.get(m.i)).map(pushMine)).then(loadOthers, () => toast("Delen met je team is niet gelukt."));
       return;
     }
     const b = e.target.closest("[data-add]");
@@ -349,6 +407,7 @@ function programHtml(team) {
     <h3 class="sr-only">Komende wedstrijden</h3>
     ${problem()}${loading()}
     ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
+    ${shared.enabled && upcoming.length ? `<p class="muted share">${state.shareError ? "Teamgenoten laden lukt nu niet. " : ""}${state.name ? `Je doet mee als <b>${esc(state.name)}</b> · <button class="link inline" id="rename">wijzig naam</button>` : "Kies bij een wedstrijd Ja, Misschien of Nee: dan zien teamgenoten je naam."}</p>` : ""}
     ${upcoming.map((m) => matchRow(m, team)).join("")}
   </section>`;
 }
@@ -446,6 +505,7 @@ async function loadMatches() {
     state.error = "Geen internet, en dit team heb je nog niet eerder geopend. Probeer het opnieuw zodra je weer verbinding hebt.";
   }
   if (state.active === key && !state.searching) renderMatches();
+  if (state.matches?.length) loadOthers();
 }
 
 // ---- Vereniging: alle thuiswedstrijden van alle teams ----
@@ -534,6 +594,7 @@ function render() {
   state.poules = [];
   state.tables = null;
   state.error = "";
+  others = null;
   renderTeam();
   loadMatches();
 }
@@ -549,6 +610,9 @@ async function main() {
   }
   render();
 }
+
+// Terug in de app: de keuzes van teamgenoten verversen.
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible" && state.active && !state.searching && !state.club && state.matches?.length) loadOthers(); });
 
 // ---- Installeren als app (PWA) ----
 // Android/Chrome: de browser geeft een beforeinstallprompt, die tonen we achter een knop.

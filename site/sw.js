@@ -2,7 +2,7 @@
 const BUILD = "__BUILD__";
 const SHELL = `shell-${BUILD}`;
 const DATA = "data-v1";
-const FILES = ["./", "index.html", "app.js", "style.css", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png"];
+const FILES = ["./", "index.html", "app.js", "shared.js", "firebase-config.js", "style.css", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {
   // cache: "reload": nooit een verouderd bestand uit de HTTP-cache van de browser of van Pages in de nieuwe versie stoppen.
