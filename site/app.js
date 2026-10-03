@@ -15,7 +15,7 @@ function load() {
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active })); } catch { /* privémodus */ }
 }
-const state = { favs: [], active: null, ...load(), searching: false, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
+const state = { favs: [], active: null, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
 
 // ---- Teamlijst ----
@@ -199,7 +199,7 @@ function renderTeam() {
       <div class="team-head">
         <div>
           <h2 id="team-name" tabindex="-1">${esc(team.naam)}</h2>
-          <p class="muted">${esc(team.club)}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand) : ""}</p>
+          <p class="muted">${team.club ? `<button class="link inline" id="club" title="Alle thuiswedstrijden van ${esc(team.club)}">${esc(team.club)}</button>` : ""}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand) : ""}</p>
         </div>
         <div class="head-btns">
           <button class="star" id="change" title="Ander team kiezen" aria-label="Ander team kiezen">⇄</button>
@@ -227,6 +227,7 @@ function renderTeam() {
     $("#fav").focus();
     toast(isFav ? "Verwijderd uit je teams" : "Team bewaard op dit toestel");
   });
+  $("#club")?.addEventListener("click", () => { state.club = team.club; render(); });
   $("#change").addEventListener("click", () => { state.searching = true; state.query = ""; render(); });
   $("#all").addEventListener("click", () => {
     const up = upcomingOf(state.matches || []);
@@ -369,8 +370,68 @@ async function loadMatches() {
   if (state.active === key && !state.searching) renderMatches();
 }
 
+// ---- Vereniging: alle thuiswedstrijden van alle teams ----
+let clubToken = 0;
+async function renderClub() {
+  const name = state.club;
+  const token = ++clubToken;
+  const teams = teamList.filter((t) => t.club === name);
+  view.innerHTML = `
+    <section class="card">
+      <div class="team-head">
+        <div>
+          <h2 id="team-name" tabindex="-1">${esc(name)}</h2>
+          <p class="muted">Thuiswedstrijden van ${teams.length} ${teams.length === 1 ? "team" : "teams"}</p>
+        </div>
+        <div class="head-btns"><button class="star" id="club-back" title="Terug naar team" aria-label="Terug naar team">✕</button></div>
+      </div>
+    </section>
+    <section class="card" id="club-matches"><p class="muted">Laden…</p></section>`;
+  $("#club-back").addEventListener("click", () => { state.club = null; render(); });
+  $("#team-name").focus({ preventScroll: true });
+  const seen = new Map();
+  let failed = 0;
+  await Promise.all(teams.map(async (t) => {
+    try {
+      const res = await fetch(`data/t/${t.key.replace(/\//g, "-")}.json`);
+      if (res.status === 404) return;
+      if (!res.ok) throw new Error();
+      const j = await res.json();
+      const me = norm(t.naam);
+      for (const m of j.m || []) {
+        const [home] = m.t.split(" - ");
+        if (norm(home || "") === me && !isNaN(parseDt(m.s))) seen.set(m.i, m);
+      }
+    } catch { failed++; }
+  }));
+  if (token !== clubToken || state.club !== name) return;
+  const list = upcomingOf([...seen.values()]).sort((a, b) => parseDt(a.s) - parseDt(b.s));
+  const rows = list.map((m) => {
+    const [home, away] = m.t.split(" - ");
+    const d = parseDt(m.s);
+    const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
+    return `<div class="match club-match">
+      <div class="when"><div class="d">${esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
+      <div class="what"><div class="vs">${esc(home)}</div><div class="muted">tegen ${esc(away || "?")}</div>${place}</div>
+      <button class="small" data-add="${esc(m.i)}" aria-label="Zet ${esc(m.t)} in je agenda">+ Agenda</button>
+    </div>`;
+  }).join("");
+  const box = $("#club-matches");
+  box.innerHTML = `<h3>Komende thuiswedstrijden</h3>
+    ${failed ? `<p class="notice">Van ${failed} ${failed === 1 ? "team" : "teams"} kon het programma niet geladen worden.</p>` : ""}
+    ${list.length ? rows : failed ? "" : `<p class="muted">Geen komende thuiswedstrijden.</p>`}`;
+  box.addEventListener("click", (e) => {
+    const b = e.target.closest("[data-add]");
+    const m = b && seen.get(b.dataset.add);
+    if (!m) return;
+    download(`${slug(m.t)}-${m.s.slice(0, 8)}.ics`, calendar(m.t, [m]));
+    toast("Open het bestand om de wedstrijd toe te voegen.");
+  });
+}
+
 function selectTeam(key, makeFav = true) {
   state.active = key;
+  state.club = null;
   state.searching = false;
   state.query = "";
   state.tab = "programma";
@@ -387,6 +448,7 @@ function render() {
     save();
   }
   if (state.searching || !state.active) return renderSearch();
+  if (state.club) return renderClub();
   state.matches = null;
   state.results = [];
   state.poules = [];
