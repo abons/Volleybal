@@ -184,3 +184,13 @@ dialog.sheet:not([open]) { display: none; }
 .att-now.set { border-style: solid; border-color: transparent; font-weight: 700; color: var(--accent-text); }
 .att-now.att-yes { background: var(--home); } .att-now.att-maybe { background: var(--away); } .att-now.att-no { background: var(--loss); }
 .past .att-box { display: none; }
+
+/* Aanwezigheid in de regel zelf, onder de plaats */
+.att-box { grid-column: auto; margin-top: 4px; justify-items: start; }
+.att-now { width: auto; min-height: 40px; padding: 4px 12px; border-radius: 999px; }
+.att-box .att { display: flex; flex-wrap: wrap; width: 100%; }
+.att-box .att button { flex: 1 1 auto; min-height: 40px; padding: 4px 10px; }
+.att-box .who { grid-column: auto; margin-top: 0; }
+.att-edit { grid-column: 1 / -1; }
+.att-edit:empty { display: none; }
+.att-edit .att { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }

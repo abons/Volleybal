@@ -253,9 +253,10 @@ function matchRow(m, team) {
       <div class="what">
         <div class="vs">${opp ? `${isHome ? "" : `<span class="tag away">uit</span>`}<span>${esc(opp)}</span>` : `<span>${esc(m.t)}</span>`}</div>
         ${place}
+        ${attendanceHtml(m)}
       </div>
       <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda">${ico.calPlus}</button>
-      ${attendanceHtml(m)}
+      <div class="att-edit" data-choice="${esc(m.i)}">${attChoice(m)}</div>
     </div>`;
 }
 
@@ -277,15 +278,18 @@ let editing = null; // id van de wedstrijd waarvan de keuzeknoppen openstaan
 
 function attInner(m) {
   const cur = attendance.get(m.i);
-  const label = esc(m.t);
-  const control = editing === m.i
-    ? `<div class="att" role="group" aria-label="Aanwezig bij ${label}?">${STATUS.map(([k, name, long]) =>
-        `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>`
-    : (() => {
-        const c = STATUS.find(([k]) => k === cur);
-        return `<button class="att-now ${cur ? "set att-" + cur : ""}" data-edit="${esc(m.i)}" aria-label="${c ? `Aanwezigheid: ${esc(c[2].toLowerCase())}. Tik om te wijzigen` : `Aanwezigheid doorgeven voor ${label}`}">${c ? `<span aria-hidden="true">${{ yes: "✓", maybe: "?", no: "✕" }[cur]}</span> ${c[1]}` : "Aanwezig? Geef door"}</button>`;
-      })();
-  return `${control}${shared.enabled ? `<div class="who" aria-live="polite">${whoHtml(m)}</div>` : ""}`;
+  const c = STATUS.find(([k]) => k === cur);
+  const open = editing === m.i;
+  const chip = `<button class="att-now ${cur ? "set att-" + cur : ""}" data-edit="${esc(m.i)}" aria-expanded="${open}" aria-label="${c ? `Aanwezigheid: ${esc(c[2].toLowerCase())}. Tik om te wijzigen` : `Aanwezigheid doorgeven voor ${esc(m.t)}`}">${c ? `<span aria-hidden="true">${{ yes: "✓", maybe: "?", no: "✕" }[cur]}</span> ${c[1]}` : "Aanwezig?"}</button>`;
+  return `${chip}${shared.enabled ? `<div class="who" aria-live="polite">${whoHtml(m)}</div>` : ""}`;
+}
+
+// De drie keuzeknoppen: een eigen regel over de volle breedte, alleen als je erop getikt hebt.
+function attChoice(m) {
+  if (editing !== m.i) return "";
+  const cur = attendance.get(m.i);
+  return `<div class="att" role="group" aria-label="Aanwezig bij ${esc(m.t)}?">${STATUS.map(([k, name, long]) =>
+    `<button class="att-${k}" data-att="${k}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>`;
 }
 
 function attendanceHtml(m) {
@@ -374,7 +378,9 @@ function renderTeam() {
       const box = $("#matches").querySelector(`[data-box="${CSS.escape(m.i)}"]`);
       if (!box) return;
       box.innerHTML = attInner(m);
-      if (focusSel) box.querySelector(focusSel)?.focus();
+      const choice = $("#matches").querySelector(`[data-choice="${CSS.escape(m.i)}"]`);
+      if (choice) choice.innerHTML = attChoice(m);
+      if (focusSel) $("#matches").querySelector(`[data-box="${CSS.escape(m.i)}"], [data-choice="${CSS.escape(m.i)}"]`) && (focusSel === ".att button" ? choice : box).querySelector(focusSel === ".att button" ? "button" : focusSel)?.focus();
     };
     const ed = e.target.closest("[data-edit]");
     const em = ed && (state.matches || []).find((x) => x.i === ed.dataset.edit);
