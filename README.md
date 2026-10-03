@@ -31,6 +31,17 @@ Nevobo's `programma.ics` per team; uitslagen en standen uit twee grote lijsten (
 en `/competitie/pouleindelingen`) die in één keer worden ingelezen en over de teams worden verdeeld.
 Poules waarin nog niets gespeeld is, krijgen geen stand.
 
+## Bestanden
+
+```
+site/index.html, style.css, app.js   de app (geen framework, geen dependencies, geen build-stap)
+site/sw.js                           service worker: offline, nieuwe versie oppakken (BUILD-stempel wordt in de build ingevuld)
+site/manifest.webmanifest, icon-*    installeerbaar als app
+scripts/build.mjs                    haalt data bij Nevobo op en bouwt ./_site
+scripts/ics.mjs                      kleine parser voor Nevobo's programma.ics
+.github/workflows/deploy.yml         bouwen + publiceren op GitHub Pages (push, twee keer per dag, handmatig)
+```
+
 ## Eenmalig instellen
 
 Settings → Pages → Source: **GitHub Actions**. Daarna publiceert elke push naar `main` (en het schema) de site.
@@ -42,7 +53,8 @@ FORCE=1 LIMIT=50 node scripts/build.mjs   # eerste 50 teams ophalen
 npx serve _site                            # of: python3 -m http.server -d _site
 ```
 
-Zonder `LIMIT` duurt een volledige run een kwartier. Gegevens: [Nevobo](https://www.nevobo.nl).
+Zonder `LIMIT` duurt een volledige run ongeveer 8 minuten. De standen en uitslagen worden altijd volledig opgehaald (twee grote lijsten);
+`LIMIT` beperkt alleen het aantal programma's. Gegevens: [Nevobo](https://www.nevobo.nl).
 
 ## Beheer
 
@@ -60,3 +72,41 @@ Zonder `LIMIT` duurt een volledige run een kwartier. Gegevens: [Nevobo](https://
   gaat daarbij verloren, je favoriet blijft bewaard.
 - **Gegevens en voorwaarden**: de wedstrijdgegevens zijn van [Nevobo](https://www.nevobo.nl) en worden via hun publieke API en
   exports opgehaald. Er is geen licentie voor de code toegevoegd; voeg er een toe als je die wilt delen.
+
+## Wat we over de Nevobo-API weten
+
+Voor wie hier later aan verder werkt (alles is in oktober 2026 met echte responses vastgesteld):
+
+- `https://api.nevobo.nl` is een Hydra/JSON-LD-API (`Accept: application/ld+json`), 30 items per pagina, `hydra:last` geeft het aantal
+  pagina's. Het filter `naam` op `/competitie/teams` werkt niet; `itemsPerPage` ook niet. Er zijn geen CORS-headers.
+- Teams: `/competitie/teams` (13,7k). De sleutel is `/competitie/teams/<clubcode>/<dames|heren|…>/<nr>`.
+- Programma per team: `/export/team/<CLUBCODE>/<soort>/<nr>/programma.ics` (hoofdletters in de clubcode). Bevat alleen **komende**
+  wedstrijden, met UID, UTC-tijden, adres en GEO. `resultaten.rss` bestaat ook per team.
+- Stand: `/competitie/pouleindelingen` (zonder filter: alle teams in alle poules; met `?poule=` of `?team=` gefilterd).
+- Uitslagen: `/competitie/wedstrijden?status=gespeeld`. `teams` is `[thuis, uit]` als pouleindeling-IRI's, `eindstand` en
+  `setstanden` volgen die volgorde. Er zijn ook filters `team`, `poule`, `vereniging`, `datum[before|after]`, `order[begintijd]`.
+- Een team zit vaak in meerdere poules (competitie, beker, promotie). Bij 0 gespeelde wedstrijden ontbreekt `positie` soms.
+
+## Testen
+
+Er is geen testsuite. Wat wel werkt: bouw met testdata in `_data/` (zie `scripts/build.mjs`: als `_data/` vers is wordt er niets opgehaald),
+serveer `_site` lokaal en laat Playwright de flow doorlopen (zoeken, team kiezen, tabs, .ics-download, offline herladen).
+De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Actions is de betrouwbare test van de crawl.
+
+## Bekende beperkingen
+
+- Alleen komende wedstrijden zitten in het programma; gespeelde staan onder Uitslagen.
+- Poules waarin nog niets gespeeld is, krijgen geen stand.
+- Een favoriet van een vorig seizoen verdwijnt als dat team niet meer bestaat; kies dan opnieuw.
+- Bij een nieuwe versie van de app herlaadt de pagina één keer; een ingetypte zoekterm of geopende tab gaat daarbij verloren.
+- Het zoekveld krijgt bij het openen van het zoekscherm altijd focus (op mobiel klapt dan het toetsenbord open).
+- De cache `data-v1` in de service worker wordt nooit opgeschoond.
+- `webcal://`-abonneren werkt op iPhone direct, op Android niet in elke agenda-app (gebruik dan de knop *Kopieer link voor je agenda*).
+
+## Ideeën voor uitbreiding
+
+- Meerdere favoriete teams naast elkaar (nu: wisselen met knoppen), of een startscherm met de eerstvolgende wedstrijd van al je teams.
+- Herinnering of alarm in het `.ics`-bestand (bijvoorbeeld een uur voor de wedstrijd).
+- Eigen teams groeperen, delen via een link (`#team=…`) of zoeken op hal en regio.
+- Alle uitslagen en standen van de hele poule bekijken (de data staat er al).
+- Pushmeldingen bij wijzigingen (vereist een server; Nevobo heeft eigen push-topics).
