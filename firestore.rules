@@ -27,7 +27,7 @@ service cloud.firestore {
       match /rsvp/{id} {
         allow read: if request.auth != null;
         allow create, update: if request.auth != null
-          && id.size() < 120
+          && id.size() < 250
           && id.matches('.*__' + request.auth.uid)
           && exists(/databases/$(db)/documents/groups/$(code))
           && request.resource.data.keys().hasOnly(['uid', 'match', 'start', 'name', 'status'])
