@@ -221,15 +221,25 @@ function renderTeam() {
       </div>
       <div class="actions">
         <div class="main-action">
-          <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}">${ico.cal} Alles in je agenda</a>
-          <button id="all" class="icon" title="Download komende wedstrijden" aria-label="Download komende wedstrijden">${ico.download}</button>
-          <button id="copy" class="icon" title="Kopieer link voor je agenda" aria-label="Kopieer link voor je agenda">${ico.link}</button>
-        </div>
-        <div class="hint-row">
-          <p class="muted hint">Wijzigingen komen mee</p>
-          <button class="link" id="change">${ico.swap} Ander team</button>
+          <button class="btn primary" id="agenda-open" aria-haspopup="dialog">${ico.cal} In je agenda</button>
+          <button id="change">${ico.swap} Ander team</button>
         </div>
       </div>
+      <dialog class="sheet" id="agenda-dlg" aria-labelledby="agenda-title">
+        <div class="sheet-head">
+          <h3 id="agenda-title">Zet in je agenda</h3>
+          <button class="star" id="agenda-close" aria-label="Sluiten">${ico.close}</button>
+        </div>
+        <a class="opt" id="subscribe" href="${esc(teamUrls(state.active).web)}">
+          ${ico.cal}<span><b>Alle wedstrijden (aanbevolen)</b><span class="muted">Nieuwe en gewijzigde wedstrijden komen vanzelf mee.</span></span>
+        </a>
+        <button class="opt" id="copy">
+          ${ico.link}<span><b>Link kopiëren</b><span class="muted">Plak de link in Google Agenda of een andere agenda-app.</span></span>
+        </button>
+        <button class="opt" id="all">
+          ${ico.download}<span><b>Eenmalig downloaden</b><span class="muted">Alleen de komende wedstrijden, zonder updates.</span></span>
+        </button>
+      </dialog>
     </section>
     <div class="tabs" role="group" aria-label="Wat wil je zien?">
       ${[["programma", "Programma"], ["uitslagen", "Uitslagen"], ["stand", "Stand"]].map(([k, l]) => `<button data-tab="${k}" aria-pressed="${state.tab === k}">${l}</button>`).join("")}
@@ -245,12 +255,19 @@ function renderTeam() {
   });
   $("#club")?.addEventListener("click", () => { state.club = team.club; render(); });
   $("#change").addEventListener("click", () => { state.searching = true; state.query = ""; render(); });
+  const dlg = $("#agenda-dlg");
+  $("#agenda-open").addEventListener("click", () => dlg.showModal());
+  $("#agenda-close").addEventListener("click", () => dlg.close());
+  dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); }); // tik naast het blad
+  $("#subscribe").addEventListener("click", () => setTimeout(() => dlg.close(), 300));
   $("#all").addEventListener("click", () => {
+    dlg.close();
     const up = upcomingOf(state.matches || []);
     download(`${slug(team.naam)}.ics`, calendar(`Wedstrijden ${team.naam}`, up));
     toast(`${up.length} komende wedstrijden. Open het bestand om ze toe te voegen.`);
   });
   $("#copy").addEventListener("click", async () => {
+    dlg.close();
     const link = teamUrls(state.active).https;
     try { await navigator.clipboard.writeText(link); toast("Link gekopieerd. Plak hem in je agenda-app."); }
     catch { prompt("Kopieer deze link en plak hem in je agenda-app:", link); }
@@ -291,7 +308,7 @@ const problem = () => (state.error ? `<p class="notice">${esc(state.error)}</p><
 function programHtml(team) {
   const upcoming = upcomingOf(state.matches || []);
   return `<section class="card">
-    <h3>Komende wedstrijden</h3>
+    <h3 class="sr-only">Komende wedstrijden</h3>
     ${problem()}${loading()}
     ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
     ${upcoming.map((m) => matchRow(m, team)).join("")}

@@ -130,3 +130,20 @@ button.small.icon { min-width: 44px; padding: 8px; font-size: 1.15rem; line-heig
 .main-action .icon .i { width: 1.25em; height: 1.25em; }
 .hint-row .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .match.today + .match { border-top-color: transparent; }
+
+/* Agenda-blad (modal) */
+dialog.sheet { margin: auto auto 0; width: min(100%, 520px); max-width: 100%; border: 0; border-radius: 16px 16px 0 0; padding: 14px 14px calc(14px + env(safe-area-inset-bottom)); background: var(--card); color: var(--text); }
+dialog.sheet::backdrop { background: rgba(0, 0, 0, .55); }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.sheet-head h3 { margin: 0; font-size: 1.05rem; text-transform: none; letter-spacing: 0; color: var(--text); }
+.sheet-head .star { margin-right: -8px; }
+.opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; margin-top: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
+a.opt { border-color: var(--accent); background: var(--soft); }
+.opt .i { width: 1.5rem; height: 1.5rem; color: var(--accent); }
+.opt span { display: grid; gap: 2px; }
+.opt .muted { font-size: .85rem; font-weight: 400; }
+.main-action .btn.primary { flex: 1; }
+.match.today { margin: 0 -8px; padding-left: 5px; padding-right: 8px; border-radius: 10px; }
+.match.today .when { padding-left: 3px; }
+.match button.small.icon { border-color: transparent; background: none; color: var(--accent); }
+.match button.small.icon:active { background: var(--soft); }
