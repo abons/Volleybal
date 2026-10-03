@@ -1,0 +1,20 @@
+name: probe
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Nevobo API
+        run: |
+          H='Origin: https://abons.github.io'
+          for u in \
+            "https://api.nevobo.nl/relatiebeheer/verenigingen?naam=volley" \
+            "https://api.nevobo.nl/relatiebeheer/teams?naam=volley" \
+            "https://api.nevobo.nl/competitie/teams?naam=volley" \
+            "https://api.nevobo.nl/export/team/ckl9r54/dames/1/programma.rss" \
+            "https://api.nevobo.nl/export/team/ckl9r54/dames/1/programma.ics" \
+            "https://api.nevobo.nl/" ; do
+            echo "=================== $u"
+            curl -sS -m 30 -L -H "$H" -H "Accept: application/ld+json" -D - "$u" | head -c 2500
+            echo
+          done
