@@ -78,6 +78,9 @@ function parseDt(s) {
 }
 const fmt = (opts) => new Intl.DateTimeFormat("nl-NL", { timeZone: TZ, ...opts });
 const fDay = fmt({ weekday: "short", day: "numeric", month: "short" });
+const fDayYear = fmt({ day: "numeric", month: "short", year: "numeric" });
+const fYear = fmt({ year: "numeric" });
+const dayLabel = (d) => (fYear.format(d) === fYear.format(new Date()) ? fDay : fDayYear).format(d);
 const fKey = fmt({ year: "numeric", month: "numeric", day: "numeric" });
 const isToday = (d) => fKey.format(d) === fKey.format(new Date());
 const fTime = fmt({ hour: "2-digit", minute: "2-digit" });
@@ -194,7 +197,7 @@ function matchRow(m, team) {
   const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
   return `
     <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}${isToday(d) ? " today" : ""}">
-      <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
+      <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(dayLabel(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what">
         <div class="vs">${opp ? `${isHome ? "" : `<span class="tag away">uit</span>`}<span>${esc(opp)}</span>` : `<span>${esc(m.t)}</span>`}</div>
         ${place}
@@ -222,7 +225,7 @@ function renderTeam() {
       <div class="actions">
         <div class="main-action">
           <button class="btn primary" id="agenda-open" aria-haspopup="dialog">${ico.cal} In je agenda</button>
-          <button id="change">${ico.swap} Ander team</button>
+          <button class="link" id="change">${ico.swap} Ander team</button>
         </div>
       </div>
       <dialog class="sheet" id="agenda-dlg" aria-labelledby="agenda-title">
@@ -318,22 +321,26 @@ function programHtml(team) {
 }
 
 // Uitslagen vanuit het eigen team bekeken: tegenstander als hoofdregel, eigen score eerst.
-function resultRow(r, team) {
+function resultSide(r, team) {
   const me = norm(team.naam);
   const idx = r.k ? r.k.indexOf(state.active) : -1; // liefst op team-sleutel, anders op naam
   const isHome = idx >= 0 ? idx === 0 : norm(r.t[0]) === me;
   const isAway = idx >= 0 ? idx === 1 : norm(r.t[1]) === me;
+  return { isHome, isAway, won: (isHome || isAway) && Number(r.e[isHome ? 0 : 1]) > Number(r.e[isHome ? 1 : 0]) };
+}
+
+function resultRow(r, team) {
+  const { isHome, isAway, won } = resultSide(r, team);
   const day = new Date(r.s);
-  const when = (ha = "") => `<div class="when"><div class="d">${esc(fDay.format(day))}</div>${r.c ? `<div class="t">${esc(r.c)}</div>` : ""}${ha}</div>`;
+  const when = (ha = "") => `<div class="when"><div class="d">${esc(dayLabel(day))}</div>${r.c ? `<div class="t">${esc(r.c)}</div>` : ""}${ha}</div>`;
   if (!isHome && !isAway) { // zou niet moeten voorkomen: toon dan de ruwe uitslag
     return `<div class="match result">${when()}<div class="what"><div class="vs">${esc(r.t.join(" – "))}</div></div><div class="score"><div class="sc">${Number(r.e[0])}–${Number(r.e[1])}</div></div></div>`;
   }
   const mine = Number(r.e[isHome ? 0 : 1]), theirs = Number(r.e[isHome ? 1 : 0]);
-  const won = mine > theirs;
   const opp = r.t[isHome ? 1 : 0];
   const sets = r.z.map(([x, y]) => `<span>${isHome ? `${Number(x)}-${Number(y)}` : `${Number(y)}-${Number(x)}`}</span>`).join(" ");
   return `
-    <div class="match result ${won ? "win" : "loss"}">
+    <div class="match result ${won ? "win" : "loss"}" role="group" aria-label="${won ? "Gewonnen" : "Verloren"} met ${mine}–${theirs} ${isHome ? "thuis" : "uit"} tegen ${esc(opp)}">
       ${when(`<div class="ha"><span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span></div>`)}
       <div class="what">
         <div class="vs"><span>${esc(opp)}</span></div>
@@ -341,7 +348,7 @@ function resultRow(r, team) {
       </div>
       <div class="score ${won ? "win" : "loss"}">
         <div class="sc">${mine}–${theirs}</div>
-        <div class="wl">${won ? "winst" : "verlies"}</div>
+        <div class="wl"><span aria-hidden="true">${won ? "✓" : "✕"}</span> ${won ? "winst" : "verlies"}</div>
       </div>
     </div>`;
 }
@@ -351,6 +358,7 @@ function resultsHtml(team) {
     <h3 class="sr-only">Uitslagen</h3>
     ${problem()}${loading()}
     ${state.matches && !state.results.length ? `<p class="muted">Nog geen uitslagen dit seizoen.</p>` : ""}
+    ${state.results.length ? `<p class="summary">${state.results.length} gespeeld · ${state.results.filter((r) => resultSide(r, team).won).length} gewonnen</p>` : ""}
     ${state.results.map((r) => resultRow(r, team)).join("")}
   </section>`;
 }
@@ -448,7 +456,7 @@ async function renderClub() {
     const d = parseDt(m.s);
     const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
     return `<div class="match club-match${isToday(d) ? " today" : ""}">
-      <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
+      <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(dayLabel(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what"><div class="vs">${esc(home)}</div><div class="muted">tegen ${esc(away || "?")}</div>${place}</div>
       <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda">${ico.calPlus}</button>
     </div>`;
