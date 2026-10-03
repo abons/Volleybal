@@ -3,5 +3,5 @@
 // De apiKey van een Firebase-webapp is niet geheim; de beveiliging zit in de Firestore-regels (firestore.rules).
 export const FIREBASE = {
   apiKey: "",
-  projectId: "",
+  projectId: "hrbons-volleybal",
 };
