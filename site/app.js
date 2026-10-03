@@ -559,7 +559,7 @@ function onGroupClick(e) {
   });
   else if (id === "g-copy" || id === "g-link") {
     const code = groupOf();
-    const text = id === "g-copy" ? showCode(code) : `${location.origin}${location.pathname}#groep=${code}`;
+    const text = id === "g-copy" ? showCode(code) : `${location.origin}${location.pathname}#groep=${code}&team=${encodeURIComponent(state.active)}`;
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : "Link gekopieerd."), () => prompt("Kopieer:", text));
   } else if (id === "g-leave") groupAction(btn, async () => {
     if (!confirm("Groep verlaten? Je keuzes verdwijnen uit de groep; op dit toestel blijven ze staan.")) return;
@@ -793,15 +793,22 @@ async function main() {
     return;
   }
   render();
-  // Link met #groep=CODE: open het deelnemen-blad met de code al ingevuld (bij een nieuw toestel zodra je een team kiest).
-  const joinCode = shared.enabled && /^#groep=([A-Za-z0-9]+)$/.exec(location.hash)?.[1];
-  if (joinCode) {
+  // Link met #groep=CODE&team=<sleutel>: kies dat team en open het deelnemen-blad met de code al ingevuld.
+  // Zonder team in de link (oudere links) vragen we je eerst een team te kiezen.
+  const hash = shared.enabled && /^#groep=([A-Za-z0-9]+)(?:&team=([^&]+))?$/.exec(location.hash);
+  if (hash) {
     history.replaceState(null, "", location.pathname + location.search);
-    const code = shared.cleanCode(joinCode);
+    const code = shared.cleanCode(hash[1]);
+    let team = "";
+    try { team = decodeURIComponent(hash[2] || ""); } catch { /* ongeldige link */ }
     if (shared.validCode(code)) {
       pendingCode = code;
-      if (!state.active) toast("Kies eerst je team; daarna kun je deelnemen met de code.");
-      offerPendingJoin();
+      if (teamIndex.has(team) && !state.groups[team]) {
+        if (state.active === team && !state.searching) offerPendingJoin();
+        else selectTeam(team);
+      } else if (!state.active) {
+        toast("Kies eerst je team; daarna kun je deelnemen met de code.");
+      } else offerPendingJoin();
     }
   }
 }
