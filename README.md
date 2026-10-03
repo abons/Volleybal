@@ -22,7 +22,7 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
 Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigheid delen via een **groep met code**:
 
 - In de app: bij het programma van een team kies je *maak een groep of neem deel*. Een nieuwe groep krijgt een willekeurige code
-  van 10 tekens (bijvoorbeeld `24WJF-TFG74`); met een code neem je deel aan een bestaande groep. Je vult alleen een naam in.
+  van 10 tekens (bijvoorbeeld `24WJF-TFG74`); met een code neem je deel aan een bestaande groep. Je vult alleen een naam in; **zonder naam kijk je alleen mee** (je ziet wie er komt, maar krijgt geen knoppen en telt niet als lid). Een naam toevoegen kan later onder *beheer*.
   De link (`#groep=<code>&team=<sleutel>`, via *Kopieer link*) kiest meteen het juiste team en opent het deelnemen-blad met de code ingevuld; je vult alleen je naam in. Oudere links zonder team vragen je eerst een team te kiezen.
 - Per team heb je één groep. Je keuze (Ja/Misschien/Nee) zie je terug bij je teamgenoten.
 - **De code is de enige beveiliging.** Wie de code heeft, kan de groep zien en meedoen. Groepen zijn niet op te sommen

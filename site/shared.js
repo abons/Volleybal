@@ -93,7 +93,7 @@ export async function createGroup(code, name) {
 export async function joinGroup(code, name) {
   try { await call(`/groups/${code}`); }
   catch (e) { throw /404/.test(e.message) ? new Error("notfound") : e; }
-  await writeMember(code, name);
+  if (name) await writeMember(code, name); // zonder naam kijk je alleen mee
 }
 
 // Query binnen een groep: Map-achtige lijst van velden.
