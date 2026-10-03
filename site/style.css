@@ -106,7 +106,7 @@ button.link { border: 0; background: none; color: var(--accent); padding: 0 8px;
 .match.result::before { content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 4px; border-radius: 2px; background: var(--bar); }
 .match.win { --bar: var(--home); } .match.loss { --bar: var(--loss); }
 .summary { margin: 2px 0 6px; font-size: .9rem; font-weight: 600; }
-#change { flex: none; }
+#change { min-width: 0; padding: 0 4px; }
 .sets { font-variant-numeric: tabular-nums; }
 .sets span { white-space: nowrap; }
 .sets span:not(:last-child)::after { content: ","; }
