@@ -204,15 +204,15 @@ function renderTeam() {
         <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${isFav ? "★" : "☆"}</button>
       </div>
       <div class="actions">
-        <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}"><span aria-hidden="true">📅</span> Alle wedstrijden in je agenda</a>
+        <div class="main-action">
+          <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}"><span aria-hidden="true">📅</span> Alle wedstrijden in je agenda</a>
+          <button id="more-toggle" aria-expanded="false" aria-controls="more-opts" aria-label="Meer opties">⋯</button>
+        </div>
+        <div class="row" id="more-opts" hidden>
+          <button id="all">Download komende wedstrijden</button>
+          <button id="copy">Kopieer link voor je agenda</button>
+        </div>
         <p class="muted hint">Nieuwe en gewijzigde wedstrijden komen vanzelf mee.</p>
-        <details class="more">
-          <summary>Meer opties</summary>
-          <div class="row">
-            <button id="all">Download komende wedstrijden</button>
-            <button id="copy">Kopieer link voor je agenda</button>
-          </div>
-        </details>
       </div>
       <button class="link" id="change">Ander team kiezen ›</button>
     </section>
@@ -227,6 +227,11 @@ function renderTeam() {
     renderTeam();
     $("#fav").focus();
     toast(isFav ? "Verwijderd uit je teams" : "Team bewaard op dit toestel");
+  });
+  $("#more-toggle").addEventListener("click", (e) => {
+    const open = e.currentTarget.getAttribute("aria-expanded") !== "true";
+    e.currentTarget.setAttribute("aria-expanded", String(open));
+    $("#more-opts").hidden = !open;
   });
   $("#change").addEventListener("click", () => { state.searching = true; state.query = ""; render(); });
   $("#all").addEventListener("click", () => {
