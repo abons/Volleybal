@@ -188,3 +188,10 @@ dialog.sheet:not([open]) { display: none; }
 /* Tijdens het kiezen krijgen de drie knoppen de volle rijbreedte (onder de datum door) */
 .match:has(.att) .when { align-self: start; }
 .att { margin-left: calc(-5.4rem - 10px); width: calc(100% + 5.4rem + 10px); }
+
+/* Rij: datum en agenda-icoon staan bij de eerste regel (tegenstander), niet in het midden van de rij */
+.match { align-items: start; }
+.when { padding-top: 2px; }
+.match button.small.icon { margin-top: -6px; }
+.match:has(.att) .when { align-self: auto; }
+.vs { overflow-wrap: anywhere; }
