@@ -69,7 +69,7 @@ const fDay = fmt({ weekday: "short", day: "numeric", month: "short" });
 const fTime = fmt({ hour: "2-digit", minute: "2-digit" });
 
 // ---- iCalendar maken ----
-const icsText = (s) => s.replace(/\\/g, "\\\\").replace(/;/g, "\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+const icsText = (s) => s.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
 const utc = (d) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
 function fold(line) {
   // Maximaal 75 bytes per regel; vervolgregels beginnen met een spatie.
@@ -282,31 +282,38 @@ function programHtml(team) {
   </section>`;
 }
 
+// Uitslagen vanuit het eigen team bekeken: tegenstander als hoofdregel, eigen score eerst.
 function resultRow(r, team) {
-  const [home, away] = r.t;
   const me = norm(team.naam);
-  const isHome = norm(home) === me, isAway = norm(away) === me;
-  const [sh, sa] = r.e;
-  const won = isHome ? sh > sa : isAway ? sa > sh : null;
+  const idx = r.k ? r.k.indexOf(state.active) : -1; // liefst op team-sleutel, anders op naam
+  const isHome = idx >= 0 ? idx === 0 : norm(r.t[0]) === me;
+  const isAway = idx >= 0 ? idx === 1 : norm(r.t[1]) === me;
   const day = new Date(r.s);
-  const name = (n, mine) => (mine ? `<b>${esc(n)}</b>` : esc(n));
+  const when = `<div class="when"><div class="d">${esc(fDay.format(day))}</div>${r.c ? `<div class="t">${esc(r.c)}</div>` : ""}</div>`;
+  if (!isHome && !isAway) { // zou niet moeten voorkomen: toon dan de ruwe uitslag
+    return `<div class="match">${when}<div class="what"><div class="vs">${esc(r.t.join(" – "))}</div></div><div class="score"><div class="sc">${Number(r.e[0])}–${Number(r.e[1])}</div></div></div>`;
+  }
+  const mine = Number(r.e[isHome ? 0 : 1]), theirs = Number(r.e[isHome ? 1 : 0]);
+  const won = mine > theirs;
+  const opp = r.t[isHome ? 1 : 0];
+  const sets = r.z.map(([x, y]) => (isHome ? `${Number(x)}-${Number(y)}` : `${Number(y)}-${Number(x)}`)).join(", ");
   return `
-    <div class="match">
-      <div class="when"><div class="d">${esc(fDay.format(day))}</div>${r.c ? `<div class="t">${esc(r.c)}</div>` : ""}</div>
+    <div class="match ${won ? "win" : "loss"}">
+      ${when}
       <div class="what">
-        <div class="vs plain">${name(home, isHome)} – ${name(away, isAway)}</div>
-        <div class="where">${esc(r.z.map(([x, y]) => `${x}-${y}`).join(", "))}</div>
+        <div class="vs"><span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span>${esc(opp)}</div>
+        <div class="where sets">${esc(sets)}</div>
       </div>
-      <div class="score ${won === null ? "" : won ? "win" : "loss"}">
-        <div class="sc">${sh}–${sa}</div>
-        ${won === null ? "" : `<div class="wl">${won ? "winst" : "verlies"}</div>`}
+      <div class="score ${won ? "win" : "loss"}">
+        <div class="sc">${mine}–${theirs}</div>
+        <div class="wl">${won ? "winst" : "verlies"}</div>
       </div>
     </div>`;
 }
 
 function resultsHtml(team) {
   return `<section class="card">
-    <h3>Uitslagen</h3>
+    <h3 class="sr-only">Uitslagen</h3>
     ${problem()}${loading()}
     ${state.matches && !state.results.length ? `<p class="muted">Nog geen uitslagen dit seizoen.</p>` : ""}
     ${state.results.map((r) => resultRow(r, team)).join("")}
@@ -324,8 +331,8 @@ function standHtml(team) {
       <div class="table-wrap">
         <table class="stand">
           <caption class="sr-only">Stand ${esc(t.n)}</caption>
-          <thead><tr><th scope="col">#</th><th scope="col">Team</th><th scope="col"><abbr title="Gespeeld">Gs</abbr></th><th scope="col"><abbr title="Punten">Pnt</abbr></th><th scope="col">Sets</th></tr></thead>
-          <tbody>${t.r.map(([pos, key, naam, gs, pt, sv, st]) => `<tr${key === state.active ? ' class="me" aria-current="true"' : ""}><td>${pos || "–"}</td><td>${esc(naam)}</td><td>${gs}</td><td>${pt}</td><td>${sv}-${st}</td></tr>`).join("")}</tbody>
+          <thead><tr><th scope="col">#</th><th scope="col">Team</th><th scope="col"><abbr title="Gespeeld">Gesp.</abbr></th><th scope="col"><abbr title="Punten">Pnt</abbr></th><th scope="col">Sets</th></tr></thead>
+          <tbody>${t.r.map(([pos, key, naam, gs, pt, sv, st]) => `<tr${key === state.active ? ' class="me" aria-current="true"' : ""}><td>${Number(pos) || "–"}</td><td>${esc(naam)}</td><td>${Number(gs)}</td><td>${Number(pt)}</td><td>${Number(sv)}-${Number(st)}</td></tr>`).join("")}</tbody>
         </table>
       </div>
     </section>`).join("");
@@ -351,8 +358,10 @@ async function loadMatches() {
     else if (!res.ok) throw new Error();
     else {
       const j = await res.json();
-      state.matches = j.m || [];
-      state.results = j.r || [];
+      if (state.active !== key) return; // ondertussen een ander team gekozen
+      // Een kapot item (zonder geldige datum) mag niet de hele lijst laten crashen.
+      state.matches = (j.m || []).filter((m) => !isNaN(parseDt(m.s)));
+      state.results = (j.r || []).filter((r) => !isNaN(new Date(r.s)));
       state.poules = j.p || [];
     }
   } catch {

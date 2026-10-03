@@ -18,16 +18,21 @@ const CONCURRENCY = Number(process.env.CONCURRENCY || 8);
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function get(url, accept, tries = 4) {
+async function get(url, accept, tries = 5) {
   for (let n = 1; ; n++) {
+    let wait = 1000 * 2 ** (n - 1); // 1, 2, 4, 8 seconden
     try {
       const res = await fetch(API + url, { headers: { Accept: accept }, signal: AbortSignal.timeout(30000) });
       if (res.status === 404) return null;
+      if (res.status === 429 || res.status === 503) {
+        const ra = Number(res.headers.get("retry-after"));
+        if (ra > 0) wait = Math.min(ra, 30) * 1000;
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return await res.text();
     } catch (err) {
       if (n >= tries) throw new Error(`${url}: ${err.message}`);
-      await sleep(500 * 2 ** n);
+      await sleep(wait);
     }
   }
 }
@@ -38,20 +43,25 @@ async function pool(items, worker, size = CONCURRENCY) {
   await Promise.all(Array.from({ length: size }, run));
 }
 
-// Een Hydra-collectie heeft maximaal 30 items per pagina; volg hydra:next tot het einde.
+// Een Hydra-collectie heeft maximaal 30 items per pagina; lees alle pagina's.
+// Verschuift de lijst tijdens het lezen, dan ontdubbelen we op @id en vergelijken we met totalItems.
 async function collection(path) {
-  const first = JSON.parse(await get(path, "application/ld+json"));
-  const last = first["hydra:view"]?.["hydra:last"];
-  const pages = Number(last?.match(/[?&]page=(\d+)/)?.[1] || 1);
-  const members = [...first["hydra:member"]];
-  const rest = Array.from({ length: pages - 1 }, (_, i) => i + 2);
-  const got = new Map();
   const sep = path.includes("?") ? "&" : "?";
-  await pool(rest, async (p) => {
-    got.set(p, JSON.parse(await get(`${path}${sep}page=${p}`, "application/ld+json"))["hydra:member"]);
-  });
-  for (const p of rest) members.push(...(got.get(p) || []));
-  return members;
+  for (let attempt = 1; ; attempt++) {
+    const first = JSON.parse(await get(path, "application/ld+json"));
+    const last = first["hydra:view"]?.["hydra:last"];
+    const pages = Number(last?.match(/[?&]page=(\d+)/)?.[1] || 1);
+    const pageItems = new Map([[1, first["hydra:member"]]]);
+    await pool(Array.from({ length: pages - 1 }, (_, i) => i + 2), async (p) => {
+      pageItems.set(p, JSON.parse(await get(`${path}${sep}page=${p}`, "application/ld+json"))["hydra:member"]);
+    });
+    const byId = new Map();
+    for (let p = 1; p <= pages; p++) for (const m of pageItems.get(p) || []) byId.set(m["@id"] ?? `${p}:${byId.size}`, m);
+    const total = first["hydra:totalItems"] ?? byId.size;
+    if (byId.size >= total * 0.97) return [...byId.values()];
+    if (attempt >= 3) throw new Error(`${path}: slechts ${byId.size} van ${total} items ontvangen`);
+    console.warn(`  ${path}: ${byId.size} van ${total} items, nieuwe poging`);
+  }
 }
 
 const fileFor = (key) => key.replace(/\//g, "-") + ".json"; // ckm1h25/dames/1 -> ckm1h25-dames-1.json
@@ -85,13 +95,13 @@ async function fetchCompetition() {
 
   // Poules waar nog niets gespeeld is (bijvoorbeeld promotiewedstrijden) laten we weg.
   const shown = new Set();
-  await rm(`${DATA}/p`, { recursive: true, force: true });
-  await mkdir(`${DATA}/p`, { recursive: true });
+  await rm(`${DATA}/p.new`, { recursive: true, force: true });
+  await mkdir(`${DATA}/p.new`, { recursive: true });
   for (const [iri, list] of rows) {
     if (!list.some((r) => r[3] > 0)) continue;
     list.sort((x, y) => (x[0] || 99) - (y[0] || 99));
     shown.add(iri);
-    await writeFile(`${DATA}/p/${pouleSlug(iri)}.json`, JSON.stringify({ n: pouleNames.get(iri) || "", cup: isCup(iri), r: list }));
+    await writeFile(`${DATA}/p.new/${pouleSlug(iri)}.json`, JSON.stringify({ n: pouleNames.get(iri) || "", cup: isCup(iri), r: list }));
   }
 
   console.log("Uitslagen ophalen…");
@@ -106,6 +116,7 @@ async function fetchCompetition() {
     const r = {
       s: w.tijdstip || w.datum,
       t: [a.naam, b.naam],
+      k: [a.key, b.key],
       e: w.eindstand,
       z: (w.setstanden || []).map((x) => [x.puntenA, x.puntenB]),
       ...(w.poule && isCup(w.poule) && { c: "Beker" }),
@@ -169,9 +180,24 @@ async function fetchData() {
   console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden`);
   if (failed > teams.length * 0.05) throw new Error("Te veel mislukte verzoeken, ik publiceer niets nieuws.");
 
+  // Vergelijk met de vorige run: een export die plotseling massaal leeg is, publiceren we niet.
+  const countWith = async (dir) => {
+    if (!existsSync(dir)) return 0;
+    let n = 0;
+    for (const f of await readdir(dir)) if (JSON.parse(await readFile(`${dir}/${f}`, "utf8")).m?.length) n++;
+    return n;
+  };
+  const before = LIMIT ? 0 : await countWith(`${DATA}/t`);
+  const after = await countWith(`${DATA}/t.new`);
+  console.log(`  teams met komende wedstrijden: ${after} (vorige run ${before})`);
+  if (before > 500 && after < before * 0.5) throw new Error("Veel minder programma's dan de vorige run, ik publiceer niets nieuws.");
+
   await rm(`${DATA}/t`, { recursive: true, force: true });
   await cp(`${DATA}/t.new`, `${DATA}/t`, { recursive: true });
   await rm(`${DATA}/t.new`, { recursive: true, force: true });
+  await rm(`${DATA}/p`, { recursive: true, force: true });
+  await cp(`${DATA}/p.new`, `${DATA}/p`, { recursive: true });
+  await rm(`${DATA}/p.new`, { recursive: true, force: true });
   await writeFile(`${DATA}/teams.json`, JSON.stringify({ updated: new Date().toISOString(), teams }));
 }
 

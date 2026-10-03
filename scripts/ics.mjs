@@ -18,7 +18,8 @@ export function parseIcs(text) {
     }
   }
   return events
-    .filter((e) => e.UID && e.DTSTART && e.SUMMARY && e.STATUS !== "CANCELLED")
+    // Alleen "20261008T190000Z"-tijden; hele dagen (VALUE=DATE) en TZID-tijden laten we weg in plaats van fout te tonen.
+    .filter((e) => e.UID && /^\d{8}T\d{6}Z?$/.test(e.DTSTART || "") && e.SUMMARY && e.STATUS !== "CANCELLED")
     .map((e) => ({
       i: e.UID,
       s: e.DTSTART,
