@@ -105,7 +105,13 @@ button.link { border: 0; background: none; color: var(--accent); padding: 0; min
 .score.win { color: var(--home); } .score.loss { color: var(--loss); }
 .match.win { box-shadow: inset 4px 0 0 var(--home); padding-left: 12px; }
 .match.loss { box-shadow: inset 4px 0 0 var(--loss); padding-left: 12px; }
-.sets { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sets { font-variant-numeric: tabular-nums; }
+.sets span { white-space: nowrap; }
+.sets span:not(:last-child)::after { content: ","; }
+.match.result { grid-template-columns: 5.4rem minmax(0, 1fr) 4.6rem; }
+.match.result .score { font-variant-numeric: tabular-nums; }
+.when .ha { margin-top: 3px; }
+.when .ha .tag { margin: 0; font-size: .75rem; }
 .table-wrap { overflow-x: auto; }
 table.stand { width: 100%; border-collapse: collapse; font-size: .9rem; }
 .stand th, .stand td { padding: 8px 4px; text-align: right; border-top: 1px solid var(--line); white-space: nowrap; }

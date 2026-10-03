@@ -324,20 +324,20 @@ function resultRow(r, team) {
   const isHome = idx >= 0 ? idx === 0 : norm(r.t[0]) === me;
   const isAway = idx >= 0 ? idx === 1 : norm(r.t[1]) === me;
   const day = new Date(r.s);
-  const when = `<div class="when"><div class="d">${esc(fDay.format(day))}</div>${r.c ? `<div class="t">${esc(r.c)}</div>` : ""}</div>`;
+  const when = (ha = "") => `<div class="when"><div class="d">${esc(fDay.format(day))}</div>${r.c ? `<div class="t">${esc(r.c)}</div>` : ""}${ha}</div>`;
   if (!isHome && !isAway) { // zou niet moeten voorkomen: toon dan de ruwe uitslag
-    return `<div class="match">${when}<div class="what"><div class="vs">${esc(r.t.join(" – "))}</div></div><div class="score"><div class="sc">${Number(r.e[0])}–${Number(r.e[1])}</div></div></div>`;
+    return `<div class="match result">${when()}<div class="what"><div class="vs">${esc(r.t.join(" – "))}</div></div><div class="score"><div class="sc">${Number(r.e[0])}–${Number(r.e[1])}</div></div></div>`;
   }
   const mine = Number(r.e[isHome ? 0 : 1]), theirs = Number(r.e[isHome ? 1 : 0]);
   const won = mine > theirs;
   const opp = r.t[isHome ? 1 : 0];
-  const sets = r.z.map(([x, y]) => (isHome ? `${Number(x)}-${Number(y)}` : `${Number(y)}-${Number(x)}`)).join(", ");
+  const sets = r.z.map(([x, y]) => `<span>${isHome ? `${Number(x)}-${Number(y)}` : `${Number(y)}-${Number(x)}`}</span>`).join(" ");
   return `
-    <div class="match ${won ? "win" : "loss"}">
-      ${when}
+    <div class="match result ${won ? "win" : "loss"}">
+      ${when(`<div class="ha"><span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span></div>`)}
       <div class="what">
-        <div class="vs">${isHome ? "" : `<span class="tag away">uit</span>`}<span>${esc(opp)}</span></div>
-        <div class="where sets">${esc(sets)}</div>
+        <div class="vs"><span>${esc(opp)}</span></div>
+        <div class="where sets">${sets}</div>
       </div>
       <div class="score ${won ? "win" : "loss"}">
         <div class="sc">${mine}–${theirs}</div>
