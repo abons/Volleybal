@@ -8,6 +8,18 @@ const $ = (sel) => document.querySelector(sel);
 const view = $("#view");
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
+// ---- Iconen: eigen SVG's, zodat ze de themakleur volgen en overal gelijk zijn ----
+const svg = (body, fill = "none") => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="${fill}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+const ico = {
+  cal: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/>'),
+  calPlus: svg('<rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18M12 13v5M9.5 15.5h5"/>'),
+  download: svg('<path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/>'),
+  link: svg('<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>'),
+  swap: svg('<path d="M4 8h14m0 0-4-4m4 4-4 4M20 16H6m0 0 4-4m-4 4 4 4"/>'),
+  star: (on) => svg('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', on ? "currentColor" : "none"),
+  close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+};
+
 // ---- Opslag: alleen op dit toestel (localStorage) ----
 function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
@@ -184,10 +196,10 @@ function matchRow(m, team) {
     <div class="match ${d < Date.now() - 3 * 3600e3 ? "past" : ""}${isToday(d) ? " today" : ""}">
       <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what">
-        <div class="vs">${opp ? `<span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span>${esc(opp)}` : esc(m.t)}</div>
+        <div class="vs">${opp ? `<span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span><span>${esc(opp)}</span>` : `<span>${esc(m.t)}</span>`}</div>
         ${place}
       </div>
-      <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda"><span aria-hidden="true">📅</span></button>
+      <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda">${ico.calPlus}</button>
     </div>`;
 }
 
@@ -201,20 +213,22 @@ function renderTeam() {
       <div class="team-head">
         <div>
           <h2 id="team-name" tabindex="-1">${esc(team.naam)}</h2>
-          <p class="muted">${team.club ? `<button class="link inline" id="club" title="Alle thuiswedstrijden van ${esc(team.club)}">${esc(team.club)}</button>` : ""}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand) : ""}</p>
+          <p class="muted">${team.club ? `<button class="link inline" id="club" title="Alle thuiswedstrijden van ${esc(team.club)}">${esc(team.club)}</button>` : ""}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand).replace(/ (\S+)$/, "&nbsp;$1") : ""}</p>
         </div>
         <div class="head-btns">
-          <button class="star" id="change" title="Ander team kiezen" aria-label="Ander team kiezen">⇄</button>
-          <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${isFav ? "★" : "☆"}</button>
+          <button class="star" id="fav" aria-pressed="${isFav}" aria-label="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${ico.star(isFav)}</button>
         </div>
       </div>
       <div class="actions">
         <div class="main-action">
-          <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}"><span aria-hidden="true">📅</span> Alle wedstrijden in je agenda</a>
-          <button id="all" class="icon" title="Download komende wedstrijden" aria-label="Download komende wedstrijden"><span aria-hidden="true">⬇️</span></button>
-          <button id="copy" class="icon" title="Kopieer link voor je agenda" aria-label="Kopieer link voor je agenda"><span aria-hidden="true">🔗</span></button>
+          <a class="btn primary" id="subscribe" href="${esc(teamUrls(state.active).web)}">${ico.cal} Alles in je agenda</a>
+          <button id="all" class="icon" title="Download komende wedstrijden" aria-label="Download komende wedstrijden">${ico.download}</button>
+          <button id="copy" class="icon" title="Kopieer link voor je agenda" aria-label="Kopieer link voor je agenda">${ico.link}</button>
         </div>
-        <p class="muted hint">Nieuwe en gewijzigde wedstrijden komen vanzelf mee.</p>
+        <div class="hint-row">
+          <p class="muted hint">Wijzigingen komen mee</p>
+          <button class="link" id="change">${ico.swap} Ander team</button>
+        </div>
       </div>
     </section>
     <div class="tabs" role="group" aria-label="Wat wil je zien?">
@@ -303,7 +317,7 @@ function resultRow(r, team) {
     <div class="match ${won ? "win" : "loss"}">
       ${when}
       <div class="what">
-        <div class="vs"><span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span>${esc(opp)}</div>
+        <div class="vs"><span class="tag ${isHome ? "home" : "away"}">${isHome ? "thuis" : "uit"}</span><span>${esc(opp)}</span></div>
         <div class="where sets">${esc(sets)}</div>
       </div>
       <div class="score ${won ? "win" : "loss"}">
@@ -385,7 +399,7 @@ async function renderClub() {
           <h2 id="team-name" tabindex="-1">${esc(name)}</h2>
           <p class="muted">Thuiswedstrijden van ${teams.length} ${teams.length === 1 ? "team" : "teams"}</p>
         </div>
-        <div class="head-btns"><button class="star" id="club-back" title="Terug naar team" aria-label="Terug naar team">✕</button></div>
+        <div class="head-btns"><button class="star" id="club-back" title="Terug naar team" aria-label="Terug naar team">${ico.close}</button></div>
       </div>
     </section>
     <section class="card" id="club-matches"><p class="muted">Laden…</p></section>`;
@@ -415,7 +429,7 @@ async function renderClub() {
     return `<div class="match club-match${isToday(d) ? " today" : ""}">
       <div class="when"><div class="d">${isToday(d) ? "vandaag" : esc(fDay.format(d))}</div><div class="t">${esc(fTime.format(d))}</div></div>
       <div class="what"><div class="vs">${esc(home)}</div><div class="muted">tegen ${esc(away || "?")}</div>${place}</div>
-      <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda"><span aria-hidden="true">📅</span></button>
+      <button class="small icon" data-add="${esc(m.i)}" title="Zet in je agenda" aria-label="Zet ${esc(m.t)} in je agenda">${ico.calPlus}</button>
     </div>`;
   }).join("");
   const box = $("#club-matches");

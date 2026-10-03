@@ -53,14 +53,15 @@ input[type=search] {
 .chip[aria-pressed=true] { background: var(--accent); color: var(--accent-text); }
 
 h3 { margin: 0 0 4px; font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
-.match { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.match { display: grid; grid-template-columns: 5.4rem 1fr auto; gap: 10px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
 h3 + .match { border-top: 0; }
 .match:first-child { border-top: 0; }
 .when { text-align: left; line-height: 1.25; }
 .when { white-space: nowrap; min-width: 5.4rem; }
 .when .d { font-weight: 700; font-size: .9rem; }
 .when .t { font-size: .85rem; color: var(--muted); }
-.vs { font-weight: 600; overflow-wrap: anywhere; }
+.vs { font-weight: 600; overflow-wrap: break-word; display: flex; align-items: baseline; gap: 6px; }
+.vs .tag { margin-right: 0; flex: none; }
 .where { font-size: .85rem; }
 .where a { color: var(--muted); text-decoration: none; }
 .where a:hover { text-decoration: underline; }
@@ -84,7 +85,7 @@ details.card summary { padding: 0; display: flex; align-items: center; }
 
 .team-head h2 { overflow-wrap: anywhere; }
 h2:focus { outline: none; }
-.hint { margin: 0; text-align: center; }
+.hint { margin: 0; text-align: left; }
 .main-action { display: flex; gap: 8px; }
 .main-action .btn { flex: 1; min-width: 0; }
 .main-action { align-items: stretch; }
@@ -121,3 +122,11 @@ button.link.inline { display: inline; padding: 0; min-height: 0; margin: 0; text
 .match.today { background: var(--soft); box-shadow: inset 3px 0 0 var(--accent); margin: 0 -14px; padding-left: 11px; padding-right: 14px; border-radius: 8px; }
 .match.today .when .d { color: var(--accent); }
 button.small.icon { min-width: 44px; padding: 8px; font-size: 1.15rem; line-height: 1; }
+.i { width: 1.3em; height: 1.3em; flex: none; }
+.hint-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hint-row button.link { margin: 0; padding: 0 0 0 8px; display: inline-flex; gap: 6px; white-space: nowrap; font-size: .9rem; }
+.head-btns button.star .i { width: 1.2em; height: 1.2em; }
+.main-action .btn.primary { white-space: nowrap; }
+.main-action .icon .i { width: 1.25em; height: 1.25em; }
+.hint-row .hint { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.match.today + .match { border-top-color: transparent; }
