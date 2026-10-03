@@ -27,9 +27,9 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
 }
 function save() {
-  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name })); } catch { /* privémodus */ }
+  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups })); } catch { /* privémodus */ }
 }
-const state = { favs: [], active: null, att: {}, name: "", ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
+const state = { favs: [], active: null, att: {}, name: "", groups: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
 
 // ---- Aanwezigheid: per wedstrijd ja / misschien / nee ----
@@ -49,35 +49,34 @@ const attendance = {
   },
 };
 if (typeof state.name !== "string") state.name = "";
-let others = null; // wedstrijd -> keuzes van teamgenoten [{ uid, name, status }]
+if (typeof state.groups !== "object" || !state.groups || Array.isArray(state.groups)) state.groups = {};
+// ---- Groep per team: de code is de enige beveiliging ----
+let others = null; // wedstrijd -> keuzes van groepsleden [{ uid, name, status }]
+let memberCount = 0;
 let myUid = "";
+const groupOf = () => (shared.enabled && state.groups[state.active]) || null;
+const showCode = (c) => `${c.slice(0, 5)}-${c.slice(5)}`;
+const upcomingMine = () => upcomingOf(state.matches || []).filter((m) => attendance.get(m.i));
 
 async function pushMine(m) {
-  if (!shared.enabled || !state.name) return;
-  await shared.put({ team: state.active, match: m.i, start: m.s, name: state.name, status: attendance.get(m.i) });
+  const code = groupOf();
+  if (!code || !state.name) return;
+  await shared.put({ code, match: m.i, start: m.s, name: state.name, status: attendance.get(m.i) });
 }
 
 async function loadOthers() {
-  if (!shared.enabled) return;
+  const code = groupOf();
   const key = state.active;
+  if (!code) { others = null; return; }
   try {
     myUid = await shared.myUid();
-    const map = await shared.team(key);
-    if (state.active !== key) return;
+    const [map, list] = await Promise.all([shared.rsvps(code), shared.members(code)]);
+    if (state.active !== key || groupOf() !== code) return;
     others = map;
+    memberCount = list.length;
     state.shareError = false;
   } catch { state.shareError = true; }
   if (state.active === key && !state.searching && !state.club) renderMatches();
-}
-
-// Naam eenmalig vragen (alleen nodig om met teamgenoten te delen).
-function askName(force = false) {
-  if (!shared.enabled || (state.name && !force)) return !!state.name || !shared.enabled;
-  const n = (prompt("Wat is je naam? Teamgenoten zien die bij je keuze.", state.name) || "").trim().slice(0, 30);
-  if (!n) return !!state.name;
-  state.name = n;
-  save();
-  return true;
 }
 
 if (typeof state.att !== "object" || !state.att || Array.isArray(state.att)) state.att = {};
@@ -335,7 +334,9 @@ function renderTeam() {
     <div class="tabs" role="group" aria-label="Wat wil je zien?">
       ${[["programma", "Programma"], ["uitslagen", "Uitslagen"], ["stand", "Stand"]].map(([k, l]) => `<button data-tab="${k}" aria-pressed="${state.tab === k}">${l}</button>`).join("")}
     </div>
-    <div id="matches"></div>`;
+    <div id="matches"></div>
+    <dialog class="sheet" id="group-dlg" aria-labelledby="group-title"></dialog>`;
+  $("#group-dlg").addEventListener("click", onGroupClick);
 
   $("#fav").addEventListener("click", () => {
     state.favs = isFav ? state.favs.filter((k) => k !== state.active) : [...state.favs, state.active];
@@ -391,19 +392,13 @@ function renderTeam() {
     const am = a && (state.matches || []).find((x) => x.i === a.dataset.for);
     if (am) { // opnieuw tikken op de gekozen knop haalt je keuze weg
       const next = attendance.get(am.i) === a.dataset.att ? null : a.dataset.att;
-      if (next && !askName()) return;
       attendance.set(am.i, next, am.s);
       editing = null;
       redraw(am, ".att-now");
       pushMine(am).then(loadOthers, () => toast("Delen met je team is niet gelukt. Je keuze staat wel op dit toestel."));
       return;
     }
-    if (e.target.closest("#rename")) { // naam wijzigen: alle eigen keuzes opnieuw delen
-      if (!askName(true)) return;
-      renderMatches();
-      Promise.all(upcomingOf(state.matches || []).filter((m) => attendance.get(m.i)).map(pushMine)).then(loadOthers, () => toast("Delen met je team is niet gelukt."));
-      return;
-    }
+    if (e.target.closest("#g-open")) { openGroupDialog(); return; }
     const b = e.target.closest("[data-add]");
     const m = b && (state.matches || []).find((x) => x.i === b.dataset.add);
     if (!m) return;
@@ -430,13 +425,112 @@ function renderMatches() {
 const loading = () => (state.matches === null && !state.error ? `<p class="muted">Laden…</p>` : "");
 const problem = () => (state.error ? `<p class="notice">${esc(state.error)}</p><button id="retry">Opnieuw proberen</button>` : "");
 
+function groupLine() {
+  const code = groupOf();
+  if (!code) return `<p class="muted share">Zie wie er komt: <button class="link inline" id="g-open">maak een groep of neem deel</button></p>`;
+  return `<p class="muted share">${state.shareError ? "Groepsleden laden lukt nu niet. " : ""}Groep <b>${esc(showCode(code))}</b>${memberCount ? ` · ${memberCount} ${memberCount === 1 ? "lid" : "leden"}` : ""} · <button class="link inline" id="g-open">beheer</button></p>`;
+}
+
+function groupDialogHtml(prefill = "") {
+  const code = groupOf();
+  const nameField = `<label class="field">Je naam<input id="g-name" type="text" maxlength="30" autocomplete="given-name" value="${esc(state.name)}" placeholder="Bijvoorbeeld Axel"></label>`;
+  const head = `<div class="sheet-head"><h3 id="group-title">${code ? "Je groep" : "Aanwezigheid delen"}</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>`;
+  if (code) return `${head}
+    <p class="muted">Deel deze code met je teamgenoten. Iedereen die de code heeft, kan de groep zien en meedoen.</p>
+    <p class="code" aria-label="Groepscode">${esc(showCode(code))}</p>
+    <div class="row2"><button id="g-copy">${ico.link} Kopieer code</button><button id="g-link">${ico.link} Kopieer link</button></div>
+    ${nameField}<button id="g-rename">Naam opslaan</button>
+    <p id="g-err" class="notice" role="alert" hidden></p>
+    <button class="link" id="g-leave">Groep verlaten</button>`;
+  return `${head}
+    <p class="muted">Je keuzes zijn dan zichtbaar voor je teamgenoten. Er is geen account; de code van de groep is de enige beveiliging.</p>
+    ${nameField}
+    <button class="btn primary" id="g-create">Nieuwe groep maken</button>
+    <label class="field">Of neem deel met een code<input id="g-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="XXXXX-XXXXX" value="${esc(prefill)}"></label>
+    <button id="g-join">Deelnemen</button>
+    <p id="g-err" class="notice" role="alert" hidden></p>`;
+}
+
+function openGroupDialog(prefill = "") {
+  const dlg = $("#group-dlg");
+  if (!dlg) return;
+  dlg.innerHTML = groupDialogHtml(prefill);
+  if (!dlg.open) (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
+}
+
+async function afterGroupChange() {
+  $("#group-dlg")?.close?.();
+  others = null;
+  renderMatches();
+  await Promise.all(upcomingMine().map(pushMine)).catch(() => {});
+  loadOthers();
+}
+
+// Eén knop in het blad: toont een fout in het blad zelf.
+async function groupAction(btn, fn) {
+  const err = $("#g-err");
+  const name = ($("#g-name")?.value || "").trim().slice(0, 30);
+  err.hidden = true;
+  btn.disabled = true;
+  try { await fn(name); }
+  catch (e) {
+    err.textContent = e.message === "notfound" ? "Die code bestaat niet. Controleer hem en probeer opnieuw." : e.message === "name" ? "Vul eerst je naam in." : e.message === "code" ? "Een code heeft 10 tekens (letters en cijfers)." : "Het is niet gelukt. Controleer je verbinding en probeer het opnieuw.";
+    err.hidden = false;
+  } finally { btn.disabled = false; }
+}
+
+function onGroupClick(e) {
+  const dlg = e.currentTarget;
+  if (e.target === dlg || e.target.closest("#g-close")) return dlg.close();
+  const btn = e.target.closest("button");
+  const id = btn?.id;
+  if (id === "g-create") groupAction(btn, async (name) => {
+    if (!name) throw new Error("name");
+    const code = shared.newCode();
+    await shared.createGroup(code, name);
+    state.name = name; state.groups[state.active] = code; save();
+    toast("Groep gemaakt. Deel de code met je team.");
+    await afterGroupChange();
+    openGroupDialog();
+  });
+  else if (id === "g-join") groupAction(btn, async (name) => {
+    const code = shared.cleanCode($("#g-code").value);
+    if (!name) throw new Error("name");
+    if (!shared.validCode(code)) throw new Error("code");
+    await shared.joinGroup(code, name);
+    state.name = name; state.groups[state.active] = code; save();
+    toast("Je doet mee met de groep.");
+    await afterGroupChange();
+  });
+  else if (id === "g-rename") groupAction(btn, async (name) => {
+    if (!name) throw new Error("name");
+    await shared.rename(groupOf(), name);
+    state.name = name; save();
+    toast("Naam opgeslagen.");
+    await afterGroupChange();
+  });
+  else if (id === "g-copy" || id === "g-link") {
+    const code = groupOf();
+    const text = id === "g-copy" ? showCode(code) : `${location.origin}${location.pathname}#groep=${code}`;
+    navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : "Link gekopieerd."), () => prompt("Kopieer:", text));
+  } else if (id === "g-leave") groupAction(btn, async () => {
+    if (!confirm("Groep verlaten? Je keuzes verdwijnen uit de groep; op dit toestel blijven ze staan.")) return;
+    const code = groupOf();
+    await shared.leaveGroup(code, (state.matches || []).map((m) => m.i));
+    delete state.groups[state.active]; save();
+    others = null;
+    dlg.close();
+    renderMatches();
+  });
+}
+
 function programHtml(team) {
   const upcoming = upcomingOf(state.matches || []);
   return `<section class="card">
     <h3 class="sr-only">Komende wedstrijden</h3>
     ${problem()}${loading()}
     ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
-    ${shared.enabled && upcoming.length ? `<p class="muted share">${state.shareError ? "Teamgenoten laden lukt nu niet. " : ""}${state.name ? `Je doet mee als <b>${esc(state.name)}</b> · <button class="link inline" id="rename">wijzig naam</button>` : "Kies bij een wedstrijd Ja, Misschien of Nee: dan zien teamgenoten je naam."}</p>` : ""}
+    ${shared.enabled ? groupLine() : ""}
     ${upcoming.map((m) => matchRow(m, team)).join("")}
   </section>`;
 }
@@ -638,6 +732,12 @@ async function main() {
     return;
   }
   render();
+  // Link met #groep=CODE: open het deelnemen-blad met de code al ingevuld.
+  const joinCode = shared.enabled && /^#groep=([A-Za-z0-9]+)$/.exec(location.hash)?.[1];
+  if (joinCode) {
+    history.replaceState(null, "", location.pathname + location.search);
+    if (state.active && !state.searching && !groupOf()) openGroupDialog(showCode(shared.cleanCode(joinCode)));
+  }
 }
 
 // Terug in de app: de keuzes van teamgenoten verversen.

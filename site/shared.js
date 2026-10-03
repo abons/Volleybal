@@ -49,26 +49,76 @@ async function call(path, init = {}) {
 }
 
 const str = (v) => ({ stringValue: v });
+const fields = (o) => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, str(v)]));
+const plain = (d) => Object.fromEntries(Object.entries(d.fields || {}).map(([k, v]) => [k, v.stringValue]));
 
-// Mijn keuze voor een wedstrijd opslaan (status null = verwijderen).
-export async function put({ team, match, start, name, status }) {
+// ---- Groepen: de code is de enige beveiliging ----
+// 10 tekens uit 32 (zonder I en O, 0 en 1): ongeveer 50 bit, niet te raden en niet op te sommen.
+const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+export const CODE_LENGTH = 10;
+export function newCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(CODE_LENGTH));
+  return Array.from(bytes, (b) => ALPHABET[b % 32]).join("");
+}
+export const cleanCode = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
+export const validCode = (c) => c.length === CODE_LENGTH && [...c].every((ch) => ALPHABET.includes(ch));
+
+const writeMember = async (code, name) => {
   const uid = await myUid();
-  const path = `/rsvp/${san(match)}__${uid}`;
-  if (!status) return call(path, { method: "DELETE" }).catch((e) => { if (!/404/.test(e.message)) throw e; });
-  return call(path, { method: "PATCH", body: JSON.stringify({ fields: { uid: str(uid), team: str(team), match: str(match), start: str(start), name: str(name), status: str(status) } }) });
+  return call(`/groups/${code}/members/${uid}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid, name }) }) });
+};
+
+export async function createGroup(code, name) {
+  const uid = await myUid();
+  await call(`/groups/${code}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ by: uid, created: new Date().toISOString() }) }) });
+  await writeMember(code, name);
 }
 
-// Alle keuzes van een team, gegroepeerd per wedstrijd: Map(match -> [{ uid, name, status }]).
-export async function team(key) {
-  const rows = await call(":runQuery", { method: "POST", body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "rsvp" }], where: { fieldFilter: { field: { fieldPath: "team" }, op: "EQUAL", value: str(key) } } } }) });
+// Gooit Error("notfound") als de code niet bestaat.
+export async function joinGroup(code, name) {
+  try { await call(`/groups/${code}`); }
+  catch (e) { throw /404/.test(e.message) ? new Error("notfound") : e; }
+  await writeMember(code, name);
+}
+
+export const rename = writeMember;
+
+// Verlaat de groep: mijn lidmaatschap en mijn keuzes voor de opgegeven wedstrijden weghalen.
+export async function leaveGroup(code, matchIds) {
+  const uid = await myUid();
+  const gone = (e) => { if (!/404/.test(e.message)) throw e; };
+  await Promise.all(matchIds.map((m) => call(`/groups/${code}/rsvp/${san(m)}__${uid}`, { method: "DELETE" }).catch(gone)));
+  await call(`/groups/${code}/members/${uid}`, { method: "DELETE" }).catch(gone);
+}
+
+async function listAll(path) {
+  const out = [];
+  let page = "";
+  do {
+    const j = await call(`${path}?pageSize=300${page ? "&pageToken=" + encodeURIComponent(page) : ""}`);
+    out.push(...(j.documents || []));
+    page = j.nextPageToken || "";
+  } while (page);
+  return out.map(plain);
+}
+
+export const members = (code) => listAll(`/groups/${code}/members`);
+
+// Mijn keuze voor een wedstrijd opslaan (status null = verwijderen).
+export async function put({ code, match, start, name, status }) {
+  const uid = await myUid();
+  const path = `/groups/${code}/rsvp/${san(match)}__${uid}`;
+  if (!status) return call(path, { method: "DELETE" }).catch((e) => { if (!/404/.test(e.message)) throw e; });
+  return call(path, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid, match, start, name, status }) }) });
+}
+
+// Alle keuzes in de groep, per wedstrijd: Map(match -> [{ uid, name, status }]).
+export async function rsvps(code) {
   const out = new Map();
-  for (const r of rows) {
-    const f = r.document?.fields;
-    if (!f) continue;
-    const m = f.match?.stringValue;
-    if (!m) continue;
-    if (!out.has(m)) out.set(m, []);
-    out.get(m).push({ uid: f.uid?.stringValue, name: f.name?.stringValue || "?", status: f.status?.stringValue });
+  for (const r of await listAll(`/groups/${code}/rsvp`)) {
+    if (!r.match) continue;
+    if (!out.has(r.match)) out.set(r.match, []);
+    out.get(r.match).push({ uid: r.uid, name: r.name || "?", status: r.status });
   }
   return out;
 }

@@ -195,3 +195,12 @@ dialog.sheet:not([open]) { display: none; }
 .match button.small.icon { margin-top: -6px; }
 .match:has(.att) .when { align-self: auto; }
 .vs { overflow-wrap: anywhere; }
+
+/* Groepsblad */
+.field { display: grid; gap: 4px; margin: 12px 0 8px; font-size: .9rem; color: var(--muted); }
+.field input { font: inherit; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--card); color: var(--text); width: 100%; }
+dialog.sheet > button:not(.star) { width: 100%; margin-top: 6px; }
+dialog.sheet .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+dialog.sheet .row2 button { min-width: 0; }
+.code { font: 700 1.6rem/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-align: center; margin: 8px 0; padding: 12px; border-radius: 12px; background: var(--soft); user-select: all; }
+dialog.sheet .notice { margin: 8px 0 0; }

@@ -7,8 +7,8 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
 
 - **Favoriet**: wordt in `localStorage` op je eigen toestel bewaard.
 - **Aanwezigheid**: bij elke komende wedstrijd kies je *Ja*, *Misschien* of *Nee* (nogmaals tikken wist je keuze). Je keuze staat
-  op je eigen toestel. Is Firebase ingesteld (zie *Aanwezigheid delen*), dan vraagt de app eenmalig je naam en zien teamgenoten
-  per wedstrijd wie komt. Geen account: Firebase logt het toestel anoniem in.
+  op je eigen toestel. Is Firebase ingesteld en neem je deel aan een groep met code (zie *Aanwezigheid delen*), dan zien
+  teamgenoten per wedstrijd wie komt. Geen account: Firebase logt het toestel anoniem in.
 - **Per wedstrijd in je agenda**: de app maakt in de browser een `.ics`-bestand van die ene wedstrijd.
   De UID is die van Nevobo, dus opnieuw toevoegen werkt een bestaande afspraak bij.
 - **Hele team in je agenda**: een `webcal://`-abonnement op Nevobo's eigen `programma.ics` van het team.
@@ -19,17 +19,26 @@ Een kleine PWA voor Nevobo-volleybal: zoek je team, bewaar het als favoriet en z
 
 ## Aanwezigheid delen (Firebase, eenmalig instellen)
 
-Zonder instellingen werkt alles lokaal. Om met teamgenoten te delen:
+Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigheid delen via een **groep met code**:
 
-1. [Firebase-console](https://console.firebase.google.com) → project maken → *Build → Authentication → Sign-in method* → **Anonymous** aanzetten.
-2. *Build → Firestore Database* → database maken (productiemodus). Plak daarna onder *Rules* de inhoud van `firestore.rules` en publiceer.
-3. *Project settings → Your apps → Web* (`</>`) → app registreren. Kopieer `apiKey` en `projectId` naar `site/firebase-config.js`.
-4. Aanbevolen: Google Cloud-console → *APIs & Services → Credentials* → die API-key beperken tot de HTTP-referrer `https://abons.github.io/*`.
+- In de app: bij het programma van een team kies je *maak een groep of neem deel*. Een nieuwe groep krijgt een willekeurige code
+  van 10 tekens (bijvoorbeeld `24WJF-TFG74`); met een code neem je deel aan een bestaande groep. Je vult alleen een naam in.
+  Een link met `#groep=<code>` opent het deelnemen-blad met de code al ingevuld.
+- Per team heb je één groep. Je keuze (Ja/Misschien/Nee) zie je terug bij je teamgenoten.
+- **De code is de enige beveiliging.** Wie de code heeft, kan de groep zien en meedoen. Groepen zijn niet op te sommen
+  (de regels staan geen *list* op `groups` toe) en er is geen account; elk toestel logt anoniem in.
+
+Instellen:
+
+1. [Firebase-console](https://console.firebase.google.com) → *Build → Authentication → Sign-in method* → **Anonymous** aanzetten.
+2. *Build → Firestore Database* → database maken (productiemodus). Plak onder *Rules* de inhoud van `firestore.rules` en publiceer.
+3. *Project settings → Your apps → Web* (`</>`) → app registreren. Zet `apiKey` en `projectId` in `site/firebase-config.js`.
+4. Aanbevolen: Google Cloud-console → *APIs & Services → Credentials* → de API-key beperken tot de HTTP-referrer `https://abons.github.io/*`.
 5. Commit naar `main`; de site wordt opnieuw gepubliceerd.
 
-De apiKey in de code is geen geheim; de regels bepalen wat mag. Iedereen die een team opent kan de namen en keuzes van dat team zien,
-en je kunt alleen je eigen keuze wijzigen. Gegevens staan in de verzameling `rsvp` (één document per speler per wedstrijd: naam, keuze,
-team, wedstrijd). Oude documenten ruimt de app niet op; verwijder ze desgewenst in de console.
+Gegevens: `groups/<code>` (alleen `by` en `created`), `groups/<code>/members/<uid>` (naam) en `groups/<code>/rsvp/<wedstrijd>__<uid>`
+(naam, keuze, wedstrijd, starttijd). Verlaat je een groep, dan verwijdert de app je lid-document en je keuzes voor de geladen wedstrijden.
+Oude documenten en groepen ruimt de app niet op; verwijder ze desgewenst in de console. Iedereen kan groepen aanmaken.
 
 ## Hoe het werkt
 
