@@ -9,6 +9,10 @@ const STORE = "volleybal.v1";
 
 const $ = (sel) => document.querySelector(sel);
 const view = $("#view");
+view.addEventListener("toggle", (e) => { // toggle bubbelt niet: in de capture-fase, één keer
+  const id = e.target.dataset?.who;
+  if (id) e.target.open ? whoOpen.add(id) : whoOpen.delete(id);
+}, true);
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 // ---- Iconen: eigen SVG's, zodat ze de themakleur volgen en overal gelijk zijn ----
@@ -541,10 +545,6 @@ function renderTeam() {
     try { await navigator.clipboard.writeText(link); toast("Link gekopieerd. Plak hem in je agenda-app."); }
     catch { prompt("Kopieer deze link en plak hem in je agenda-app:", link); }
   });
-  view.addEventListener("toggle", (e) => {
-    const id = e.target.dataset?.who;
-    if (id) e.target.open ? whoOpen.add(id) : whoOpen.delete(id);
-  }, true);
   view.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
     state.tab = b.dataset.tab;
     view.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
