@@ -31,3 +31,12 @@ export function shouldPush(r, m, mine, name) {
 
 // Moet reconcile mijn document in de groep verwijderen omdat ik voor wedstrijd m niets (meer) gekozen heb?
 export const shouldDrop = (r, m, mine) => !mine && !!r && !(r.start && m.s && r.start > m.s);
+
+// Waarschuwing "nog niet ingevuld": alleen als er al veel is ingevuld (minstens 3, en minstens de helft) en er een paar ontbreken.
+// Wie nog niets of weinig heeft ingevuld, ziet geen waarschuwing; die weet dat hij nog moet beginnen.
+// Geeft de ontbrekende wedstrijden terug, of [] als er niets te waarschuwen valt.
+export function missingChoices(upcoming, filled) {
+  const missing = (upcoming || []).filter((m) => !filled(m));
+  const done = (upcoming || []).length - missing.length;
+  return missing.length && done >= 3 && missing.length <= done ? missing : [];
+}

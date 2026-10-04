@@ -1,7 +1,7 @@
 // Volleybal-PWA: team zoeken, favoriet lokaal bewaren, wedstrijden naar je agenda.
 
 import * as shared from "./shared.js";
-import { sameStart, currentFor, staleIds, shouldPush, shouldDrop } from "./fresh.js";
+import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices } from "./fresh.js";
 
 const NEVOBO = "api.nevobo.nl";
 const TZ = "Europe/Amsterdam";
@@ -562,10 +562,21 @@ function renderTeam() {
       attendance.set(am.i, next, am.s);
       editing = null;
       redraw(am, entering ? `[data-att="${a.dataset.att}"]` : ".att-now");
+      refreshFill();
       pushMine(am).then(loadOthers, () => toast("Delen met je team is niet gelukt. Je keuze staat wel op dit toestel."));
       return;
     }
     if (e.target.closest("#g-open")) { openGroupDialog(); return; }
+    if (e.target.closest("#att-fill")) { // alle keuzeknoppen open en naar de eerste wedstrijd zonder keuze
+      const first = missingChoices(upcomingOf(state.matches || []), (x) => attendance.get(x.i))[0];
+      entering = true;
+      editing = null;
+      renderMatches();
+      const box = first && $("#matches").querySelector(`[data-box="${CSS.escape(first.i)}"]`);
+      box?.scrollIntoView({ block: "center" });
+      box?.querySelector(".att button")?.focus();
+      return;
+    }
     if (e.target.closest("#att-mode")) {
       entering = !entering;
       editing = null;
@@ -603,6 +614,17 @@ const problem = () => (state.error ? `<p class="notice">${esc(state.error)}</p><
 function modeBar() {
   return `<div class="modebar">${shared.enabled ? groupLine() : ""}${viewing() ? "" : `<button class="small${entering ? " on" : ""}" id="att-mode" aria-pressed="${entering}" title="Aanwezigheid bij alle wedstrijden doorgeven">${entering ? "Klaar" : "Geef door"}</button>`}</div>`;
 }
+
+// Waarschuwing boven het programma als je er al veel hebt ingevuld maar een paar ontbreken.
+function fillWarningHtml() {
+  if (viewing()) return "";
+  const missing = missingChoices(upcomingOf(state.matches || []), (m) => attendance.get(m.i));
+  if (!missing.length) return "";
+  const days = missing.map((m) => dayLabel(parseDt(m.s)));
+  const list = days.length > 3 ? `${days.slice(0, 3).join(", ")} en ${days.length - 3} meer` : days.join(", ");
+  return `<div class="notice fill-warn" role="status"><span><b>${missing.length === 1 ? "1 wedstrijd" : `${missing.length} wedstrijden`} niet ingevuld</b>: ${esc(list)}.</span> <button class="small" id="att-fill">Vul nu in</button></div>`;
+}
+const refreshFill = () => { const el = $("#fill-warn"); if (el) el.innerHTML = fillWarningHtml(); };
 
 const inviteLink = () => `${location.origin}${location.pathname}#groep=${groupOf()}&team=${encodeURIComponent(state.active)}`;
 
@@ -823,6 +845,7 @@ function programHtml(team) {
     ${problem()}${loading()}
     ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
     ${upcoming.length ? modeBar() : shared.enabled ? groupLine() : ""}
+    <div id="fill-warn">${fillWarningHtml()}</div>
     ${upcoming.map((m) => matchRow(m, team)).join("")}
   </section>`;
 }

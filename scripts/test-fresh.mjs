@@ -1,8 +1,8 @@
 // Tests voor site/fresh.js: keuzes die bij een verzette wedstrijd hangen tellen niet meer mee.
-// Draai met: node --test scripts/
+// Draai met: node --test "scripts/test-*.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sameStart, currentFor, staleIds, shouldPush, shouldDrop } from "../site/fresh.js";
+import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices } from "../site/fresh.js";
 
 const MOVED = { i: "083045eb753448140d4b3dd92f504d76", s: "20270306T160000Z" }; // was 27 feb
 const SAME = { i: "0d90975dd78f15c1a77ae665b61bf283", s: "20261114T170000Z" };
@@ -68,4 +68,16 @@ test("shouldDrop: eigen document zonder lokale keuze weg, behalve bij een nieuwe
   assert.equal(shouldDrop({ ...doc, start: "20270313T160000Z" }, MOVED, null), false);
   assert.equal(shouldDrop(doc, MOVED, "yes"), false);
   assert.equal(shouldDrop(undefined, MOVED, null), false);
+});
+
+test("missingChoices: waarschuwt alleen als er veel is ingevuld en een paar ontbreken", () => {
+  const ms = (n) => Array.from({ length: n }, (_, k) => ({ i: `m${k}`, s: "x" }));
+  const filledFirst = (n) => (m) => Number(m.i.slice(1)) < n;
+  assert.deepEqual(missingChoices(ms(10), filledFirst(8)).map((m) => m.i), ["m8", "m9"]);
+  assert.deepEqual(missingChoices(ms(10), filledFirst(10)), []); // alles ingevuld
+  assert.deepEqual(missingChoices(ms(10), filledFirst(0)), []); // nog niets ingevuld: geen waarschuwing
+  assert.deepEqual(missingChoices(ms(10), filledFirst(2)), []); // te weinig ingevuld
+  assert.deepEqual(missingChoices(ms(10), filledFirst(4)), []); // meer dan de helft ontbreekt
+  assert.equal(missingChoices(ms(6), filledFirst(3)).length, 3); // precies de helft telt nog mee
+  assert.deepEqual(missingChoices(undefined, filledFirst(3)), []);
 });

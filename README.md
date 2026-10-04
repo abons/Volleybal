@@ -52,6 +52,10 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   laten alleen je eigen keuzes verwijderen; ze worden genegeerd. Een ontbrekende `start` geldt als geldig. Een toestel met een ouder
   programma overschrijft of verwijdert geen document met een nieuwere start. Het filter `start >= gisteren` van `rsvps()` betekent dat
   een wedstrijd die naar een eerdere datum verschuift (buiten dat filter) niet via `reconcile` wordt opgeruimd; dat laten we zo.
+- **Waarschuwing bij ontbrekende keuzes**: heb je van de komende wedstrijden al minstens 3 en minstens de helft ingevuld, maar ontbreken er
+  een paar, dan staat boven het programma "N wedstrijden niet ingevuld: …" met de knop *Vul nu in* (opent alle keuzeknoppen en springt naar de
+  eerste zonder keuze). Wie nog niets of weinig heeft ingevuld, ziet niets; wie alleen meekijkt ook niet. Zo valt ook een keuze op die de app
+  wiste omdat de wedstrijd verzet is. De regel staat in `missingChoices` (`site/fresh.js`).
 - Zit je in een groep, dan vraagt de app de browser je opslag te bewaren (`navigator.storage.persist`) en legt de installeerhint uit
   waarom installeren helpt: Safari wist gegevens van websites die je zeven dagen niet opent, van een app op het beginscherm niet.
 - **De code is de enige beveiliging.** Wie de code heeft, kan de groep zien en meedoen. Groepen zijn niet op te sommen

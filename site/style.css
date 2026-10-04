@@ -71,6 +71,8 @@ h3 + .match { border-top: 0; }
 details summary { cursor: pointer; color: var(--muted); padding: 10px 0; min-height: 44px; }
 details.card summary { padding: 0; display: flex; align-items: center; }
 .notice { padding: 12px; border-radius: 10px; background: var(--soft); }
+.fill-warn { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; }
+.fill-warn button { flex: none; min-height: 40px; border-color: var(--accent); color: var(--accent); }
 #toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; opacity: 0;
