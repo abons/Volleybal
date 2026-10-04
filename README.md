@@ -29,9 +29,9 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
 - Onder *beheer* staat een **ledenlijst** met per lid hoeveel komende wedstrijden zijn ingevuld, en bij elk ander lid *Verwijder*.
   Dat is bedoeld voor "spoken": een toestel dat zijn opslag kwijt is, krijgt bij opnieuw deelnemen een nieuwe anonieme gebruiker
   en laat zijn oude naam met oude keuzes achter. Verwijderen haalt het lid-document en de keuzes weg. Een lid dat de app nog gebruikt,
-  maakt zijn lid-document bij het volgende laden vanzelf weer aan. **Let op:** de meegeleverde `firestore.rules` staan alleen
-  verwijderen van je eigen documenten toe; om anderen te kunnen opruimen moeten de regels dat voor leden van de groep toestaan
-  (en moet die aangepaste versie in de Firebase-console gepubliceerd zijn). Tot die tijd meldt de app "Het is niet gelukt".
+  maakt zijn lid-document bij het volgende laden vanzelf weer aan. De regels staan leden van de groep toe een ander lid te
+  verwijderen en de keuzes van een verdwenen lid op te ruimen; publiceer na een wijziging altijd dezelfde `firestore.rules` in de
+  Firebase-console.
 - Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
   gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
 - Zit je in een groep, dan vraagt de app de browser je opslag te bewaren (`navigator.storage.persist`) en legt de installeerhint uit

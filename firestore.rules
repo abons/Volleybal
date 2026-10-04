@@ -12,6 +12,8 @@ service cloud.firestore {
         && request.resource.data.created is string && request.resource.data.created.size() < 40;
 
       // Leden: één document per lid, id = uid van de anonieme gebruiker.
+      // Verwijderen mag iedereen met de code: zo ruim je een "spook" op van een toestel dat zijn opslag kwijt is
+      // (de app van een actief lid herstelt zijn lid-document vanzelf).
       match /members/{uid} {
         allow read: if request.auth != null;
         allow create, update: if request.auth != null
@@ -20,10 +22,11 @@ service cloud.firestore {
           && request.resource.data.keys().hasOnly(['uid', 'name'])
           && request.resource.data.uid == request.auth.uid
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30;
-        allow delete: if request.auth != null && uid == request.auth.uid;
+        allow delete: if request.auth != null;
       }
 
       // Keuzes: één document per speler per wedstrijd, id = <wedstrijd>__<uid>.
+      // Verwijderen: je eigen keuzes, of die van een speler die geen lid (meer) is.
       match /rsvp/{id} {
         allow read: if request.auth != null;
         allow create, update: if request.auth != null
@@ -36,7 +39,9 @@ service cloud.firestore {
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30
           && request.resource.data.match is string && request.resource.data.match.size() < 200
           && request.resource.data.start is string && request.resource.data.start.size() < 20;
-        allow delete: if request.auth != null && id.matches('.*__' + request.auth.uid);
+        allow delete: if request.auth != null
+          && (id.matches('.*__' + request.auth.uid)
+            || !exists(/databases/$(db)/documents/groups/$(code)/members/$(resource.data.uid)));
       }
     }
   }
