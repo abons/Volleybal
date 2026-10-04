@@ -470,13 +470,13 @@ function renderTeam() {
           <p class="muted">${team.club ? `<button class="link inline" id="club" title="Alle thuiswedstrijden van ${esc(team.club)}">${esc(team.club)}</button>` : ""}${team.plaats ? ", " + esc(team.plaats) : ""}${team.stand ? " · " + esc(team.stand).replace(/ (\S+)$/, "&nbsp;$1") : ""}</p>
         </div>
         <div class="head-btns">
+          <button class="star" id="change" aria-label="Ander team" title="Ander team">${ico.swap}</button>
           <button class="star" id="fav" aria-pressed="${isFav}" aria-label="Mijn team" title="${isFav ? "Verwijder uit mijn teams" : "Bewaar als mijn team"}">${ico.star(isFav)}</button>
         </div>
       </div>
       <div class="actions">
         <div class="main-action">
           <button class="btn primary" id="agenda-open" aria-haspopup="dialog">${ico.cal} In je agenda</button>
-          <button class="link" id="change">${ico.swap} Ander team</button>
         </div>
       </div>
       <dialog class="sheet" id="agenda-dlg" aria-labelledby="agenda-title">
@@ -852,7 +852,7 @@ function onGroupClick(e) {
 
 function programHtml(team) {
   const upcoming = upcomingOf(state.matches || []);
-  return `<section class="card">
+  return `<section class="card flat">
     <h3 class="sr-only">Komende wedstrijden</h3>
     ${problem()}${loading()}
     ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
