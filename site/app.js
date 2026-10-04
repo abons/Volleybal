@@ -20,6 +20,7 @@ const ico = {
   swap: svg('<path d="M4 8h14m0 0-4-4m4 4-4 4M20 16H6m0 0 4-4m-4 4 4 4"/>'),
   star: (on) => svg('<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>', on ? "currentColor" : "none"),
   close: svg('<path d="M6 6l12 12M18 6 6 18"/>'),
+  share: svg('<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/>'),
 };
 
 // ---- Opslag: alleen op dit toestel (localStorage) ----
@@ -54,6 +55,7 @@ for (const [k, c] of Object.entries(state.groups)) if (!shared.validCode(String(
 if (typeof state.watch !== "object" || !state.watch || Array.isArray(state.watch)) state.watch = {};
 // ---- Groep per team: de code is de enige beveiliging ----
 let others = null; // wedstrijd -> keuzes van groepsleden [{ uid, name, status }]
+let memberList = []; // leden van de groep [{ uid, name }]
 let memberCount = 0;
 let myUid = "";
 const groupOf = () => (shared.enabled && state.groups[state.active]) || null;
@@ -68,7 +70,7 @@ async function pushMine(m) {
 }
 
 let othersSeq = 0;
-function resetShared() { others = null; memberCount = 0; state.shareError = false; othersSeq++; }
+function resetShared() { others = null; memberList = []; memberCount = 0; state.shareError = false; othersSeq++; }
 
 // Alleen de aanwezigheidsblokken en de groepsregel verversen, zodat de focus en een openstaande keuze blijven staan.
 function refreshShared() {
@@ -117,6 +119,7 @@ async function loadOthers() {
     const [map, list] = await Promise.all([shared.rsvps(code), shared.members(code)]);
     if (stale()) return;
     others = map;
+    memberList = list;
     memberCount = list.length;
     state.shareError = false;
     // eigen keuzes die in de groep ontbreken of afwijken, gelijktrekken (op de achtergrond)
@@ -285,12 +288,17 @@ function updateResults() {
     : `${results.length} ${results.length === 1 ? "team" : "teams"} gevonden`;
 }
 
-function matchRow(m, team) {
+// Vanuit het eigen team bekeken: thuis of uit, en wie de tegenstander is.
+function sideOf(m, team) {
   const [home, away] = m.t.split(" - ");
   const me = norm(team.naam);
   const isHome = norm(home || "") === me;
   const isAway = norm(away || "") === me;
-  const opp = isHome ? away : isAway ? home : null;
+  return { isHome, opp: isHome ? away : isAway ? home : null };
+}
+
+function matchRow(m, team) {
+  const { isHome, opp } = sideOf(m, team);
   const d = parseDt(m.s);
   const place = m.l ? `<div class="where"><a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(m.l)}" target="_blank" rel="noopener">${esc(shortPlace(m.l))}</a></div>` : "";
   return `
@@ -305,17 +313,48 @@ function matchRow(m, team) {
     </div>`;
 }
 
-// Wie komt er? Teamgenoten (zonder jezelf) plus jouw eigen keuze met je naam, compact: "✓ Anouk, Bo  ? Dewi  ✕ Eline".
-const GLYPH = { yes: "✓", maybe: "?", no: "✕" };
+// Wie komt er? Teamgenoten (zonder jezelf) plus jouw eigen keuze met je naam, en wie nog niets heeft gekozen,
+// compact: "✓ Anouk, Bo  ? Dewi  ✕ Eline  ○ Fenna".
+const GLYPH = { yes: "✓", maybe: "?", no: "✕", open: "○" };
+const byName = (a, b) => a.localeCompare(b, "nl");
+// Keuzes bij een wedstrijd: die van teamgenoten uit de groep en je eigen keuze zoals die op dit toestel staat.
+function whoList(m) {
+  const list = (others?.get(m.i) || []).filter((o) => o.uid !== myUid);
+  const mine = attendance.get(m.i);
+  if (mine && state.name && !viewing()) list.push({ uid: myUid, name: state.name, status: mine });
+  return list;
+}
+// Leden die bij deze wedstrijd nog niets hebben gekozen (jijzelf met de naam van dit toestel).
+function openNames(m, list) {
+  const done = new Set(list.map((o) => o.uid));
+  return memberList.filter((o) => o.uid && !done.has(o.uid)).map((o) => (o.uid === myUid ? state.name : o.name) || "?").sort(byName);
+}
+// Per keuze de namen: [["yes", ["Anouk", "Bo"]], ["open", ["Fenna"]]], alleen gevulde groepen.
+function whoGroups(m) {
+  const list = whoList(m);
+  const groups = STATUS.map(([k]) => [k, list.filter((o) => o.status === k).map((o) => o.name).sort(byName)]);
+  groups.push(["open", openNames(m, list)]);
+  return groups.filter(([, names]) => names.length);
+}
+const LABEL = { yes: "Ja", maybe: "Misschien", no: "Nee", open: "Nog niet gereageerd" };
 function whoHtml(m) {
   if (!shared.enabled || !others) return "";
-  const list = (others.get(m.i) || []).filter((o) => o.uid !== myUid);
-  const mine = attendance.get(m.i);
-  if (mine && state.name && !viewing()) list.push({ name: state.name, status: mine });
-  return STATUS.map(([k, label]) => {
-    const names = list.filter((o) => o.status === k).map((o) => o.name).sort((a, b) => a.localeCompare(b, "nl"));
-    return names.length ? `<span class="who-${k}"><span aria-hidden="true">${GLYPH[k]}</span><span class="sr-only">${label}: </span> ${names.map(esc).join(", ")}</span>` : "";
-  }).filter(Boolean).join(" ");
+  return whoGroups(m).map(([k, names]) =>
+    `<span class="who-${k}"><span aria-hidden="true">${GLYPH[k]}</span><span class="sr-only">${LABEL[k]}: </span> ${names.map(esc).join(", ")}</span>`).join(" ");
+}
+
+// Tekstoverzicht voor in de teamapp: per komende wedstrijd wie komt en wie nog niet heeft gereageerd, plus de uitnodigingslink.
+const OVERVIEW_MAX = 8;
+function overviewText(team) {
+  const upcoming = upcomingOf(state.matches || []);
+  const lines = upcoming.slice(0, OVERVIEW_MAX).map((m) => {
+    const { isHome, opp } = sideOf(m, team);
+    const d = parseDt(m.s);
+    const who = whoGroups(m).map(([k, names]) => `${GLYPH[k]} ${k === "open" ? "nog niet: " : ""}${names.join(", ")}`);
+    return `${dayLabel(d)} ${fTime.format(d)} · ${opp ? `${isHome ? "thuis" : "uit"} tegen ${opp}` : m.t}\n${who.length ? who.join(" · ") : "nog geen keuzes"}`;
+  });
+  if (upcoming.length > OVERVIEW_MAX) lines.push(`… en nog ${upcoming.length - OVERVIEW_MAX} wedstrijden in de app.`);
+  return `Wie komt er? ${team.naam}\n\n${lines.join("\n\n")}\n\nGeef je aanwezigheid door in de app: ${inviteLink()}`;
 }
 
 // Standaard een rustige regel met je keuze; tik erop en dezelfde plek wordt Ja / Misschien / Nee.
@@ -498,6 +537,17 @@ function modeBar() {
   return `<div class="modebar">${shared.enabled ? groupLine() : ""}${viewing() ? "" : `<button class="small${entering ? " on" : ""}" id="att-mode" aria-pressed="${entering}" title="Aanwezigheid bij alle wedstrijden doorgeven">${entering ? "Klaar" : "Geef door"}</button>`}</div>`;
 }
 
+const inviteLink = () => `${location.origin}${location.pathname}#groep=${groupOf()}&team=${encodeURIComponent(state.active)}`;
+
+// Delen via het deelmenu van het toestel (WhatsApp enzovoort); zonder deelmenu naar het klembord.
+async function shareText(text, title) {
+  if (navigator.share) {
+    try { await navigator.share({ title, text }); return; }
+    catch (e) { if (e.name === "AbortError") return; } // geannuleerd: niets doen
+  }
+  await navigator.clipboard.writeText(text).then(() => toast("Overzicht gekopieerd. Plak het in je teamapp."), () => prompt("Kopieer:", text));
+}
+
 function groupLine() {
   const code = groupOf();
   if (!code) return `<p class="muted share">Zie wie er komt: <button class="link inline" id="g-open">maak een groep of neem deel</button></p>`;
@@ -512,6 +562,8 @@ function groupDialogHtml(prefill = "") {
     <p class="muted">Deel deze code met je teamgenoten. Iedereen die de code heeft, kan de groep zien en meedoen.</p>
     <p class="code" aria-label="Groepscode">${esc(showCode(code))}</p>
     <div class="row2"><button id="g-copy">${ico.link} Kopieer code</button><button id="g-link">${ico.link} Kopieer link</button></div>
+    <button id="g-share"${upcomingOf(state.matches || []).length ? "" : " disabled"}>${ico.share} Deel wie er komt</button>
+    <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
     ${viewing() ? `<p class="muted">Je kijkt alleen mee. Vul je naam in om zelf je aanwezigheid door te geven.</p>` : ""}
     ${nameField}<button id="g-rename">${viewing() ? "Meedoen met naam" : "Naam opslaan"}</button>
     <p id="g-err" class="notice" role="alert" hidden></p>
@@ -539,10 +591,19 @@ function openGroupDialog(prefill = "") {
   if (prefill) $("#g-name")?.focus(); // alleen je naam ontbreekt nog
 }
 
+// Vraag de browser onze opslag niet op te ruimen. Chrome en Safari beslissen stil (geïnstalleerd of veel gebruikt = ja);
+// Firefox vraagt het de gebruiker. Zonder groep maakt verlies weinig uit, dus alleen dan.
+function persistStorage() {
+  if (!Object.keys(state.groups).length) return;
+  navigator.storage?.persist?.().catch(() => {});
+}
+
 // Na maken, deelnemen of wijzigen: blad sluiten en meteen de nieuwe stand tonen; delen gebeurt op de achtergrond.
 function afterGroupChange(reopen = false, enter = false) {
   $("#group-dlg")?.close?.();
   resetShared();
+  persistStorage();
+  showInstall(); // de hint vertelt nu ook dat je groep als app bewaard blijft
   if (enter) { // na maken of deelnemen meteen de keuzeknoppen bij alle wedstrijden openen
     entering = true;
     editing = null;
@@ -599,9 +660,10 @@ function onGroupClick(e) {
   });
   else if (id === "g-copy" || id === "g-link") {
     const code = groupOf();
-    const text = id === "g-copy" ? showCode(code) : `${location.origin}${location.pathname}#groep=${code}&team=${encodeURIComponent(state.active)}`;
+    const text = id === "g-copy" ? showCode(code) : inviteLink();
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : "Link gekopieerd."), () => prompt("Kopieer:", text));
-  } else if (id === "g-leave") groupAction(btn, async () => {
+  } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
+  else if (id === "g-leave") groupAction(btn, async () => {
     if (!confirm("Groep verlaten? Je keuzes verdwijnen uit de groep; op dit toestel blijven ze staan.")) return;
     const code = groupOf();
     await shared.leaveGroup(code);
@@ -609,6 +671,7 @@ function onGroupClick(e) {
     resetShared();
     dlg.close();
     refreshShared();
+    showInstall(); // zonder groep weer de gewone installeerhint
     $("#g-open")?.focus();
   });
 }
@@ -868,8 +931,9 @@ let installEvent = null;
 function showInstall() {
   if (standalone) return;
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const inGroup = Object.keys(state.groups).length > 0;
   if (installEvent) {
-    installBox.innerHTML = `<button class="primary" id="do-install">📲 Zet op je beginscherm als app</button>`;
+    installBox.innerHTML = `<button class="primary" id="do-install">📲 Zet op je beginscherm als app</button>${inGroup ? `<p class="muted hint">Als app blijven je groep en keuzes bewaard: de browser ruimt de opslag dan niet op.</p>` : ""}`;
     $("#do-install").addEventListener("click", async () => {
       installEvent.prompt();
       await installEvent.userChoice;
@@ -877,13 +941,14 @@ function showInstall() {
       installBox.hidden = true;
     });
   } else if (ios) {
-    installBox.innerHTML = `<p class="notice">📲 <b>Als app installeren:</b> tik in Safari op <b>Deel</b> (het vierkantje met pijl) en kies <b>Zet op beginscherm</b>.</p>`;
+    installBox.innerHTML = `<p class="notice">📲 <b>Als app installeren:</b> tik in Safari op <b>Deel</b> (het vierkantje met pijl) en kies <b>Zet op beginscherm</b>.${inGroup ? " Safari wist gegevens van websites die je zeven dagen niet opent; als app blijven je groep en keuzes bewaard." : ""}</p>`;
   } else return;
   installBox.hidden = false;
 }
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; showInstall(); });
 addEventListener("appinstalled", () => { installBox.hidden = true; toast("Geïnstalleerd"); });
 showInstall();
+persistStorage();
 
 // Nieuwe versie van de app automatisch oppakken: zodra een nieuwe service worker het overneemt, laden we de pagina één keer opnieuw.
 // (Niet bij de allereerste installatie: dan is er nog geen oude versie om te vervangen.)

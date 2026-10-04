@@ -216,3 +216,7 @@ dialog.sheet .notice { margin: 8px 0 0; }
 /* Zichtbare pill is 26px; onzichtbare laag maakt het tikdoel 44px hoog */
 .att-now.set::after { content: ""; position: absolute; inset: -9px -6px; }
 .att-now.set + .who { margin-top: 8px; }
+
+/* Deel-overzicht in het groepsblad en de installeerhint: toelichting onder de knop */
+dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
+.who-open > span:first-child { color: var(--muted); }

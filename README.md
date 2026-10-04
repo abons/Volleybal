@@ -24,7 +24,12 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
 - In de app: bij het programma van een team kies je *maak een groep of neem deel*. Een nieuwe groep krijgt een willekeurige code
   van 10 tekens (bijvoorbeeld `24WJF-TFG74`); met een code neem je deel aan een bestaande groep. Je vult alleen een naam in; **zonder naam kijk je alleen mee** (je ziet wie er komt, maar krijgt geen knoppen en telt niet als lid). Een naam toevoegen kan later onder *beheer*.
   De link (`#groep=<code>&team=<sleutel>`, via *Kopieer link*) kiest meteen het juiste team en opent het deelnemen-blad met de code ingevuld; je vult alleen je naam in. Oudere links zonder team vragen je eerst een team te kiezen.
-- Per team heb je één groep. Je keuze (Ja/Misschien/Nee) zie je terug bij je teamgenoten.
+- Per team heb je één groep. Je keuze (Ja/Misschien/Nee) zie je terug bij je teamgenoten. Onder elke wedstrijd staat ook met `○`
+  wie van de leden nog niets heeft gekozen.
+- Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
+  gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
+- Zit je in een groep, dan vraagt de app de browser je opslag te bewaren (`navigator.storage.persist`) en legt de installeerhint uit
+  waarom installeren helpt: Safari wist gegevens van websites die je zeven dagen niet opent, van een app op het beginscherm niet.
 - **De code is de enige beveiliging.** Wie de code heeft, kan de groep zien en meedoen. Groepen zijn niet op te sommen
   (de regels staan geen *list* op `groups` toe) en er is geen account; elk toestel logt anoniem in.
 
@@ -134,6 +139,11 @@ De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Ac
 ## Ideeën voor uitbreiding
 
 - Live bijwerken van de aanwezigheid (nu ververst die bij openen, na je keuze en als je terugkomt in de app) en opruimen van oude `rsvp`-documenten.
+- Groepsbeheer: ledenlijst onder *beheer* met *verwijder* (ook voor "spoken" van toestellen die hun opslag kwijt zijn; vraagt in
+  `firestore.rules` verwijderrecht op andermans lid-document en op keuzes van een verdwenen lid).
+- Herstel na verlies van opslag: een herstel-link met je naam, en bij deelnemen met een bestaande naam "Ben jij dit? Neem keuzes over"
+  (keuzes kopiëren naar de nieuwe uid, oude lid opruimen, en in `reconcile` ook van groep naar toestel synchroniseren).
+- Aanwezigheid doorsturen: keuzes in de uitnodigingslink (sleutel per wedstrijd op datum), de ontvanger bevestigt in de Geef-door-modus.
 - Meerdere favoriete teams naast elkaar (nu: wisselen met knoppen), of een startscherm met de eerstvolgende wedstrijd van al je teams.
 - Herinnering of alarm in het `.ics`-bestand (bijvoorbeeld een uur voor de wedstrijd).
 - Eigen teams groeperen, delen via een link (`#team=…`) of zoeken op hal en regio.
