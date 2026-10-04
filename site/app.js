@@ -78,6 +78,7 @@ function refreshShared() {
   if (state.searching || state.club || state.tab !== "programma") return;
   const root = $("#matches");
   if (!root) return;
+  refreshFill();
   const active = document.activeElement;
   const focusBox = active?.classList?.contains("att-now") ? active.closest("[data-box]")?.dataset.box : null;
   const focusLine = active?.id === "g-open";

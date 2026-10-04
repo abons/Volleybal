@@ -50,7 +50,7 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   *nog niet gereageerd*, en ook niet in de teller onder *beheer*. Een eigen verouderde keuze wist de app bij het laden van het programma
   (met een melding "kies opnieuw"), en `reconcile` ruimt je document in de groep op. Documenten van anderen blijven staan, want de regels
   laten alleen je eigen keuzes verwijderen; ze worden genegeerd. Een ontbrekende `start` geldt als geldig. Een toestel met een ouder
-  programma overschrijft of verwijdert geen document met een nieuwere start. Het filter `start >= gisteren` van `rsvps()` betekent dat
+  programma overschrijft of verwijdert geen document met een nieuwere start (een eigen lokale keuze wist het wel, met de melding "kies opnieuw": een verouderd programma is niet te onderscheiden van een wedstrijd die naar eerder is verzet). Het filter `start >= gisteren` van `rsvps()` betekent dat
   een wedstrijd die naar een eerdere datum verschuift (buiten dat filter) niet via `reconcile` wordt opgeruimd; dat laten we zo.
 - **Waarschuwing bij ontbrekende keuzes**: heb je van de komende wedstrijden al minstens 3 en minstens de helft ingevuld, maar ontbreken er
   een paar, dan staat boven het programma "N wedstrijden niet ingevuld: …" met de knop *Vul nu in* (opent alle keuzeknoppen en springt naar de
