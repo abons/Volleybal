@@ -37,6 +37,11 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   ingevuld. Neem je deel met een naam die al in de groep staat onder een ander toestel, dan vraagt de app "Ben jij dat?" en neemt bij ja
   de keuzes voor komende wedstrijden over (wat al op dit toestel staat gaat voor) en verwijdert het oude lid. Dat geldt ook als je
   onder *beheer* je naam wijzigt naar een bestaande naam.
+- **Keuzes doorsturen**: onder *beheer* staat *Stuur je keuzes door*: een bericht met jouw keuzes voor de komende wedstrijden en een
+  link (`&van=<naam>&a=<starttijd><j|m|n>,…`, starttijd in UTC als `jjjjmmdduumm`). Wie de link opent en al in de groep zit, krijgt
+  een blad "Aanwezigheid overnemen" met de keuzes en kan ze in één keer overnemen of afwijzen; wie nog niet meedoet, ziet ze op het
+  deelnemen-blad en neemt ze bij deelnemen over. Daarna staan de keuzeknoppen open om bij te stellen. Wedstrijden die niet (meer) in
+  het programma staan, worden overgeslagen.
 - Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
   gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
 - Zit je in een groep, dan vraagt de app de browser je opslag te bewaren (`navigator.storage.persist`) en legt de installeerhint uit
@@ -150,7 +155,7 @@ De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Ac
 ## Ideeën voor uitbreiding
 
 - Live bijwerken van de aanwezigheid (nu ververst die bij openen, na je keuze en als je terugkomt in de app) en opruimen van oude `rsvp`-documenten.
-- Aanwezigheid doorsturen: keuzes in de uitnodigingslink (sleutel per wedstrijd op datum), de ontvanger bevestigt in de Geef-door-modus.
+- Invullen namens een teamgenoot zonder de app (keuze met velden `voor` en `door`, apart in de regels en gemarkeerd in de lijst).
 - Meerdere favoriete teams naast elkaar (nu: wisselen met knoppen), of een startscherm met de eerstvolgende wedstrijd van al je teams.
 - Herinnering of alarm in het `.ics`-bestand (bijvoorbeeld een uur voor de wedstrijd).
 - Eigen teams groeperen, delen via een link (`#team=…`) of zoeken op hal en regio.

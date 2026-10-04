@@ -348,6 +348,67 @@ function whoHtml(m) {
     `<span class="who-${k}"><span aria-hidden="true">${GLYPH[k]}</span><span class="sr-only">${LABEL[k]}: </span> ${names.map(esc).join(", ")}</span>`).join(" ");
 }
 
+// ---- Keuzes doorsturen via een link: &a=<sleutel><letter>,… ----
+// Sleutel per wedstrijd is de starttijd in UTC (jjjjmmdduumm), kort en stabiel; letters j/m/n voor Ja/Misschien/Nee.
+const ATT_CODE = { yes: "j", maybe: "m", no: "n" };
+const CODE_ATT = Object.fromEntries(Object.entries(ATT_CODE).map(([k, v]) => [v, k]));
+const matchKey = (m) => parseDt(m.s).toISOString().slice(0, 16).replace(/\D/g, "");
+const keyDate = (k) => new Date(Date.UTC(+k.slice(0, 4), +k.slice(4, 6) - 1, +k.slice(6, 8), +k.slice(8, 10), +k.slice(10, 12)));
+let pendingProposal = null; // { from, items: [{ k, status }] } uit een link, tot het is overgenomen of afgewezen
+
+function parseProposal(a, from) {
+  const items = String(a || "").split(",").map((p) => /^(\d{12})([jmn])$/.exec(p)).filter(Boolean).map((x) => ({ k: x[1], status: CODE_ATT[x[2]] }));
+  return items.length ? { from: String(from || "").trim().slice(0, 30), items } : null;
+}
+// Mijn keuzes voor komende wedstrijden als link, met mijn naam als afzender.
+function forwardLink() {
+  const a = upcomingMine().map((m) => matchKey(m) + ATT_CODE[attendance.get(m.i)]).join(",");
+  return `${inviteLink()}&van=${encodeURIComponent(state.name)}&a=${a}`;
+}
+function forwardText(team) {
+  const lines = upcomingMine().map((m) => {
+    const { isHome, opp } = sideOf(m, team);
+    const d = parseDt(m.s);
+    return `${GLYPH[attendance.get(m.i)]} ${dayLabel(d)} · ${opp ? `${isHome ? "thuis" : "uit"} tegen ${opp}` : m.t}`;
+  });
+  return `Aanwezigheid ${team.naam}, zoals ik hem heb ingevuld:\n${lines.join("\n")}\n\nOvernemen of aanpassen: ${forwardLink()}`;
+}
+// Regels voor het voorstel in een blad, uit de sleutels zelf (de wedstrijdlijst hoeft nog niet geladen te zijn).
+const proposalLines = (items) => items.map(({ k, status }) => { const d = keyDate(k); return `<li><span class="who-${status}"><span aria-hidden="true">${GLYPH[status]}</span><span class="sr-only">${LABEL[status]}: </span></span> ${esc(dayLabel(d))} ${esc(fTime.format(d))}</li>`; }).join("");
+// Voorstel overnemen: zet de keuzes op dit toestel voor de wedstrijden die (nog) in het programma staan. Geeft het aantal terug.
+async function applyProposal() {
+  const p = pendingProposal;
+  pendingProposal = null;
+  if (!p) return 0;
+  await matchesLoaded;
+  const byKey = new Map(upcomingOf(state.matches || []).map((m) => [matchKey(m), m]));
+  let n = 0;
+  for (const { k, status } of p.items) { const m = byKey.get(k); if (m) { attendance.set(m.i, status, m.s); n++; } }
+  return n;
+}
+// Al in de groep en een link met keuzes geopend: vraag of je ze overneemt.
+async function offerProposal() {
+  const p = pendingProposal;
+  if (!p || !state.active || state.searching || !groupOf()) return;
+  if (viewing()) { pendingProposal = null; return toast("Vul eerst je naam in onder beheer; daarna kun je keuzes overnemen."); }
+  const dlg = $("#group-dlg");
+  if (!dlg) return;
+  // De wedstrijdlijst is geladen: toon alleen keuzes voor wedstrijden die er nog in staan.
+  const keys = new Set(upcomingOf(state.matches || []).map(matchKey));
+  const items = p.items.filter((it) => keys.has(it.k));
+  const gone = p.items.length - items.length;
+  if (!items.length) { pendingProposal = null; return toast("De wedstrijden uit de link staan niet (meer) in het programma."); }
+  dlg.innerHTML = `<div class="sheet-head"><h3 id="group-title">Aanwezigheid overnemen</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
+    <p class="muted">${p.from ? esc(p.from) + " stuurde" : "Iemand stuurde"} je deze keuzes voor ${esc(teamIndex.get(state.active)?.naam || "je team")}. Neem ze over; aanpassen kan daarna per wedstrijd.</p>
+    <ul class="proposal">${proposalLines(items)}</ul>
+    ${gone ? `<p class="muted hint">${gone} ${gone === 1 ? "wedstrijd uit de link staat" : "wedstrijden uit de link staan"} niet (meer) in het programma.</p>` : ""}
+    <button class="btn primary" id="p-accept">Overnemen</button>
+    <p id="g-err" class="notice" role="alert" hidden></p>
+    <button class="link" id="p-skip">Nee, mijn keuzes laten staan</button>`;
+  if (!dlg.open) (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
+  $("#p-accept")?.focus();
+}
+
 // Tekstoverzicht voor in de teamapp: per komende wedstrijd wie komt en wie nog niet heeft gereageerd, plus de uitnodigingslink.
 const OVERVIEW_MAX = 8;
 function overviewText(team) {
@@ -585,6 +646,8 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <div class="row2"><button id="g-copy">${ico.link} Kopieer code</button><button id="g-link">${ico.link} Kopieer link</button></div>
     <button id="g-share"${upcomingOf(state.matches || []).length ? "" : " disabled"}>${ico.share} Deel wie er komt</button>
     <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
+    ${viewing() ? "" : `<button id="g-forward"${upcomingMine().length ? "" : " disabled"}>${ico.share} Stuur je keuzes door</button>
+    <p class="muted hint">Een link met jouw keuzes voor de komende wedstrijden. Wie hem opent, neemt ze in één keer over, handig als je altijd samen gaat.</p>`}
     ${membersHtml()}
     ${viewing() ? "" : `<h4 class="m-head">Voor jezelf</h4>
     <button id="g-restore">${ico.link} Kopieer herstel-link</button>
@@ -595,6 +658,7 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <button class="link" id="g-leave">Groep verlaten</button>`;
   if (prefill) return `<div class="sheet-head"><h3 id="group-title">Deelnemen aan de groep</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
     <p class="muted">Je bent uitgenodigd voor een groep. Vul je naam in om mee te doen; zonder naam kijk je alleen mee.</p>
+    ${pendingProposal ? `<p class="muted">${pendingProposal.from ? esc(pendingProposal.from) + " stuurde" : "Er zijn"} ook keuzes mee die je overneemt; aanpassen kan daarna per wedstrijd.</p><ul class="proposal">${proposalLines(pendingProposal.items)}</ul>` : ""}
     ${nameField}
     <label class="field">Groepscode<input id="g-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" value="${esc(prefill)}"></label>
     <button class="btn primary" id="g-join">${prefillName || state.name ? "Deelnemen" : "Alleen kijken"}</button>
@@ -662,12 +726,12 @@ function afterGroupChange(reopen = false, enter = false) {
 async function groupAction(btn, fn) {
   const err = $("#g-err");
   const name = ($("#g-name")?.value || "").trim().slice(0, 30);
-  err.hidden = true;
+  if (err) err.hidden = true;
   btn.disabled = true;
   try { await fn(name); }
   catch (e) {
     err.textContent = e.message === "notfound" ? "Die code bestaat niet. Controleer hem en probeer opnieuw." : e.message === "name" ? "Vul eerst je naam in." : e.message === "code" ? "Een code heeft 10 tekens (letters en cijfers)." : "Het is niet gelukt. Controleer je verbinding en probeer het opnieuw.";
-    err.hidden = false;
+    if (err) err.hidden = false; else toast("Het is niet gelukt. Probeer het opnieuw.");
   } finally { btn.disabled = false; }
 }
 
@@ -692,8 +756,11 @@ function onGroupClick(e) {
     if (name) { state.name = name; delete state.watch[state.active]; } else state.watch[state.active] = true;
     save();
     const claimed = name ? await claimGhost(code, name).catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; }) : false;
-    toast(claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : name ? "Je doet mee met de groep. Geef je aanwezigheid door." : "Je kijkt mee. Vul later een naam in om mee te doen.");
-    afterGroupChange(false, !!name && !claimed);
+    const proposed = name && pendingProposal ? await applyProposal() : 0; // meegestuurde keuzes gaan voor
+    if (proposed) save();
+    toast(proposed ? `Je doet mee. ${proposed} ${proposed === 1 ? "keuze" : "keuzes"} overgenomen; klopt het niet, pas het aan.` : claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : name ? "Je doet mee met de groep. Geef je aanwezigheid door." : "Je kijkt mee. Vul later een naam in om mee te doen.");
+    pendingProposal = null;
+    afterGroupChange(false, !!name && (!claimed || !!proposed));
   });
   else if (id === "g-rename") groupAction(btn, async (name) => {
     if (!name) throw new Error("name");
@@ -710,6 +777,14 @@ function onGroupClick(e) {
     const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}`;
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : id === "g-link" ? "Link gekopieerd." : "Herstel-link gekopieerd. Bewaar hem in je notities."), () => prompt("Kopieer:", text));
   } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
+  else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid");
+  else if (id === "p-skip") { pendingProposal = null; dlg.close(); }
+  else if (id === "p-accept") groupAction(btn, async () => {
+    const n = await applyProposal();
+    save();
+    toast(n ? `${n} ${n === 1 ? "keuze" : "keuzes"} overgenomen. Klopt het niet? Pas het hieronder aan.` : "Deze wedstrijden staan niet (meer) in het programma.");
+    afterGroupChange(false, !!n);
+  });
   else if (btn?.dataset.remove) groupAction(btn, async () => {
     const uid = btn.dataset.remove;
     const who = memberList.find((o) => o.uid === uid)?.name || "dit lid";
@@ -818,7 +893,9 @@ async function loadTables() {
   if (state.tab === "stand" && !state.searching) $("#matches").innerHTML = standHtml(teamIndex.get(key));
 }
 
-async function loadMatches() {
+let matchesLoaded = Promise.resolve(); // laatste loadMatches, om op te wachten
+function loadMatches() { return (matchesLoaded = loadMatchesNow()); }
+async function loadMatchesNow() {
   state.matches = null;
   state.error = "";
   const key = state.active;
@@ -957,19 +1034,24 @@ async function main() {
     return;
   }
   render();
-  // Link met #groep=CODE&team=<sleutel>[&naam=<naam>]: kies dat team en open het deelnemen-blad met de code (en bij een
-  // herstel-link je naam) al ingevuld. Zonder team in de link (oudere links) vragen we je eerst een team te kiezen.
-  const hash = shared.enabled && /^#groep=([A-Za-z0-9]+)(?:&team=([^&]+))?(?:&naam=([^&]+))?$/.exec(location.hash);
-  if (hash) {
+  // Link met #groep=CODE&team=<sleutel>[&naam=<naam>][&van=<afzender>&a=<keuzes>]: kies dat team en open het deelnemen-blad
+  // met de code (en bij een herstel-link je naam) al ingevuld. Meegestuurde keuzes neem je bij deelnemen over; zit je al in de
+  // groep, dan vraagt een blad of je ze overneemt. Zonder team in de link (oudere links) vragen we je eerst een team te kiezen.
+  const params = shared.enabled && location.hash.startsWith("#groep=") ? new URLSearchParams(location.hash.slice(1)) : null;
+  if (params) {
     history.replaceState(null, "", location.pathname + location.search);
-    const code = shared.cleanCode(hash[1]);
-    let team = "", name = "";
-    try { team = decodeURIComponent(hash[2] || ""); name = decodeURIComponent(hash[3] || "").trim().slice(0, 30); } catch { /* ongeldige link */ }
+    const code = shared.cleanCode(params.get("groep") || "");
+    const team = params.get("team") || "", name = (params.get("naam") || "").trim().slice(0, 30);
     if (shared.validCode(code)) {
       pendingCode = code;
       pendingName = name;
+      pendingProposal = parseProposal(params.get("a"), params.get("van"));
       if (teamIndex.has(team)) { // de link hoort bij een team: dat team kiezen
-        if (state.groups[team]) { pendingCode = ""; toast("Je zit al in de groep van dit team."); }
+        if (state.groups[team] === code && pendingProposal) { // al lid: alleen de keuzes nog
+          pendingCode = "";
+          if (state.active !== team || state.searching) selectTeam(team);
+          matchesLoaded.then(offerProposal);
+        } else if (state.groups[team]) { pendingCode = ""; pendingProposal = null; toast("Je zit al in de groep van dit team."); }
         else if (state.active === team && !state.searching) offerPendingJoin();
         else selectTeam(team);
       } else if (!state.active) {
