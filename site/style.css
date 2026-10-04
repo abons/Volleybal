@@ -245,3 +245,12 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 .where { font-size: .9rem; }
 .where a { color: var(--muted); text-decoration: none; }
 .where a:active { text-decoration: underline; }
+
+/* Ingeklapte spelerslijst: aantallen als samenvatting, namen na tikken */
+.who-d { margin: 4px 0; }
+.who-d summary { display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 0; font-size: .85rem; color: var(--muted); cursor: pointer; list-style: none; }
+.who-d summary::-webkit-details-marker { display: none; }
+.who-d summary::after { content: "\203A"; margin-left: auto; transform: rotate(90deg); font-size: 1.2rem; line-height: 1; }
+.who-d[open] summary::after { transform: rotate(-90deg); }
+.who-d .who { margin-top: 0; }
+.att-now.set + .who-d { margin-top: 0; }

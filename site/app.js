@@ -344,6 +344,14 @@ function whoGroups(m) {
   return groups.filter(([, names]) => names.length);
 }
 const LABEL = { yes: "Ja", maybe: "Misschien", no: "Nee", open: "Nog niet gereageerd" };
+// Ingeklapt: alleen de aantallen ("✓ 8 ? 1 ○ 2"); tikken toont de namen.
+const whoOpen = new Set(); // wedstrijden waarvan de namen uitgeklapt zijn; blijft staan bij verversen
+function whoDetails(m) {
+  const full = whoHtml(m);
+  if (!full) return "";
+  const counts = whoGroups(m).map(([k, names]) => `<span class="who-${k}"><span aria-hidden="true">${GLYPH[k]}</span><span class="sr-only">${LABEL[k]}: </span>${names.length}</span>`).join(" ");
+  return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="Wie komt er? Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
+}
 function whoHtml(m) {
   if (!shared.enabled || !others) return "";
   return whoGroups(m).map(([k, names]) =>
@@ -430,7 +438,7 @@ let editing = null; // id van de wedstrijd waarvan de keuzeknoppen openstaan
 let entering = false; // "Geef door"-modus: bij alle wedstrijden staan de keuzeknoppen open
 
 function attInner(m) {
-  if (viewing()) { const w = whoHtml(m); return w ? `<div class="who" aria-live="polite">${w}</div>` : ""; }
+  if (viewing()) return whoDetails(m);
   const cur = attendance.get(m.i);
   if (entering || editing === m.i) {
     const who = entering ? whoHtml(m) : "";
@@ -438,8 +446,7 @@ function attInner(m) {
       `<button class="att-${k}" data-att="${k}" data-g="${GLYPH[k]}" data-for="${esc(m.i)}" aria-pressed="${cur === k}" aria-label="${esc(long)}">${name}</button>`).join("")}</div>${who ? `<div class="who" aria-live="polite">${who}</div>` : ""}`;
   }
   const text = { yes: "Je komt", maybe: "Misschien", no: "Je komt niet" }[cur];
-  const who = whoHtml(m);
-  const whoLine = who ? `<div class="who" aria-live="polite">${who}</div>` : "";
+  const whoLine = whoDetails(m);
   // Nog niets gekozen: geen regel per wedstrijd; invullen gaat via de knop 'Geef door' bovenaan.
   if (!cur) return whoLine;
   const line = `<span class="dot att-${cur}" aria-hidden="true">${GLYPH[cur]}</span>${text}`;
@@ -534,6 +541,10 @@ function renderTeam() {
     try { await navigator.clipboard.writeText(link); toast("Link gekopieerd. Plak hem in je agenda-app."); }
     catch { prompt("Kopieer deze link en plak hem in je agenda-app:", link); }
   });
+  view.addEventListener("toggle", (e) => {
+    const id = e.target.dataset?.who;
+    if (id) e.target.open ? whoOpen.add(id) : whoOpen.delete(id);
+  }, true);
   view.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => {
     state.tab = b.dataset.tab;
     view.querySelectorAll("[data-tab]").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
