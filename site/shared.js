@@ -114,6 +114,9 @@ export async function rename(code, name) {
 
 // Een lid met zijn keuzes uit de groep halen: eerst het lid-document (faalt dat, dan blijft alles zoals het was), daarna de keuzes.
 // Voor een ander lid moet firestore.rules dat toestaan; bedoeld voor "spoken" van toestellen die hun opslag kwijt zijn.
+// Alle keuzes van één speler in de groep (voor het overnemen na verlies van opslag).
+export const rsvpsOf = (code, uid) => ofUid(code, uid);
+
 export async function removeMember(code, uid) {
   await call(`/groups/${code}/members/${uid}`, { method: "DELETE" }).catch(gone);
   await Promise.all((await ofUid(code, uid)).map((r) => call(`/groups/${code}/rsvp/${r.id}`, { method: "DELETE" }).catch(gone)));

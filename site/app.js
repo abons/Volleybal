@@ -575,9 +575,9 @@ function membersHtml() {
     <p class="muted hint">Staat iemand dubbel of is iemand gestopt? Verwijder dat lid; de keuzes verdwijnen uit de groep. Wie de app nog gebruikt, komt vanzelf terug.</p>`;
 }
 
-function groupDialogHtml(prefill = "") {
+function groupDialogHtml(prefill = "", prefillName = "") {
   const code = groupOf();
-  const nameField = `<label class="field">Je naam<input id="g-name" type="text" maxlength="30" autocomplete="given-name" value="${esc(state.name)}" placeholder="Bijvoorbeeld Axel"></label>`;
+  const nameField = `<label class="field">Je naam<input id="g-name" type="text" maxlength="30" autocomplete="given-name" value="${esc(prefillName || state.name)}" placeholder="Bijvoorbeeld Axel"></label>`;
   const head = `<div class="sheet-head"><h3 id="group-title">${code ? "Je groep" : "Aanwezigheid delen"}</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>`;
   if (code) return `${head}
     <p class="muted">Deel deze code met je teamgenoten. Iedereen die de code heeft, kan de groep zien en meedoen.</p>
@@ -586,6 +586,9 @@ function groupDialogHtml(prefill = "") {
     <button id="g-share"${upcomingOf(state.matches || []).length ? "" : " disabled"}>${ico.share} Deel wie er komt</button>
     <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
     ${membersHtml()}
+    ${viewing() ? "" : `<h4 class="m-head">Voor jezelf</h4>
+    <button id="g-restore">${ico.link} Kopieer herstel-link</button>
+    <p class="muted hint">Bewaar deze link in je notities. Op een nieuw toestel, of als de browser je gegevens heeft gewist, opent hij je team en groep met je naam, en neem je je eerdere keuzes over.</p>`}
     ${viewing() ? `<p class="muted">Je kijkt alleen mee. Vul je naam in om zelf je aanwezigheid door te geven.</p>` : ""}
     ${nameField}<button id="g-rename">${viewing() ? "Meedoen met naam" : "Naam opslaan"}</button>
     <p id="g-err" class="notice" role="alert" hidden></p>
@@ -594,7 +597,7 @@ function groupDialogHtml(prefill = "") {
     <p class="muted">Je bent uitgenodigd voor een groep. Vul je naam in om mee te doen; zonder naam kijk je alleen mee.</p>
     ${nameField}
     <label class="field">Groepscode<input id="g-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" value="${esc(prefill)}"></label>
-    <button class="btn primary" id="g-join">${state.name ? "Deelnemen" : "Alleen kijken"}</button>
+    <button class="btn primary" id="g-join">${prefillName || state.name ? "Deelnemen" : "Alleen kijken"}</button>
     <p id="g-err" class="notice" role="alert" hidden></p>`;
   return `${head}
     <p class="muted">Je keuzes zijn dan zichtbaar voor je teamgenoten. Zonder naam kun je alleen meekijken. Er is geen account; de code van de groep is de enige beveiliging.</p>
@@ -605,12 +608,31 @@ function groupDialogHtml(prefill = "") {
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
 
-function openGroupDialog(prefill = "") {
+function openGroupDialog(prefill = "", prefillName = "") {
   const dlg = $("#group-dlg");
   if (!dlg) return;
-  dlg.innerHTML = groupDialogHtml(prefill);
+  dlg.innerHTML = groupDialogHtml(prefill, prefillName);
   if (!dlg.open) (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
-  if (prefill) $("#g-name")?.focus(); // alleen je naam ontbreekt nog
+  if (prefill) (prefillName ? $("#g-join") : $("#g-name"))?.focus(); // met naam uit de link hoef je alleen te bevestigen
+}
+
+// Deelnemen met een naam die al in de groep staat onder een ander toestel: waarschijnlijk jijzelf, na verlies van je opslag
+// (nieuw toestel, browsergegevens gewist). Vraagt het, neemt dan de keuzes voor komende wedstrijden over (wat al op dit toestel
+// staat gaat voor) en ruimt het oude lid op. Geeft terug of er iets is overgenomen.
+async function claimGhost(code, name) {
+  const uid = await shared.myUid();
+  const same = (a, b) => a.localeCompare(b, "nl", { sensitivity: "base" }) === 0;
+  const ghosts = (await shared.members(code)).filter((o) => o.uid && o.uid !== uid && o.name && same(o.name, name));
+  if (!ghosts.length) return false;
+  if (!confirm(`Er doet al een ${ghosts[0].name} mee in deze groep, vanaf een ander toestel. Ben jij dat? Dan nemen we die keuzes over en verdwijnt het oude lid.`)) return false;
+  const from = new Date(Date.now() - 864e5).toISOString().slice(0, 10).replace(/-/g, "");
+  for (const g of ghosts) {
+    for (const r of await shared.rsvpsOf(code, g.uid)) {
+      if (r.match && r.status && (r.start || "") >= from && !attendance.get(r.match)) attendance.set(r.match, r.status, r.start);
+    }
+    await shared.removeMember(code, g.uid);
+  }
+  return true;
 }
 
 // Vraag de browser onze opslag niet op te ruimen. Chrome en Safari beslissen stil (geïnstalleerd of veel gebruikt = ja);
@@ -669,21 +691,24 @@ function onGroupClick(e) {
     state.groups[state.active] = code;
     if (name) { state.name = name; delete state.watch[state.active]; } else state.watch[state.active] = true;
     save();
-    toast(name ? "Je doet mee met de groep. Geef je aanwezigheid door." : "Je kijkt mee. Vul later een naam in om mee te doen.");
-    afterGroupChange(false, !!name);
+    const claimed = name ? await claimGhost(code, name).catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; }) : false;
+    toast(claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : name ? "Je doet mee met de groep. Geef je aanwezigheid door." : "Je kijkt mee. Vul later een naam in om mee te doen.");
+    afterGroupChange(false, !!name && !claimed);
   });
   else if (id === "g-rename") groupAction(btn, async (name) => {
     if (!name) throw new Error("name");
     const wasViewing = viewing();
-    await shared.rename(groupOf(), name);
-    state.name = name; delete state.watch[state.active]; save();
-    toast(wasViewing ? "Je doet mee. Geef je aanwezigheid door." : "Naam opgeslagen.");
-    afterGroupChange(false, wasViewing);
-  });
-  else if (id === "g-copy" || id === "g-link") {
     const code = groupOf();
-    const text = id === "g-copy" ? showCode(code) : inviteLink();
-    navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : "Link gekopieerd."), () => prompt("Kopieer:", text));
+    await shared.rename(code, name);
+    state.name = name; delete state.watch[state.active]; save();
+    const claimed = await claimGhost(code, name).catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; });
+    toast(claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : wasViewing ? "Je doet mee. Geef je aanwezigheid door." : "Naam opgeslagen.");
+    afterGroupChange(false, wasViewing && !claimed);
+  });
+  else if (id === "g-copy" || id === "g-link" || id === "g-restore") {
+    const code = groupOf();
+    const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}`;
+    navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : id === "g-link" ? "Link gekopieerd." : "Herstel-link gekopieerd. Bewaar hem in je notities."), () => prompt("Kopieer:", text));
   } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
   else if (btn?.dataset.remove) groupAction(btn, async () => {
     const uid = btn.dataset.remove;
@@ -877,13 +902,14 @@ async function renderClub() {
 }
 
 let pendingCode = ""; // code uit een uitnodigingslink die wacht tot er een team gekozen is
+let pendingName = ""; // naam uit een herstel-link
 
 function offerPendingJoin() {
   if (!pendingCode || !shared.enabled || !state.active || state.searching) return;
-  const code = pendingCode;
-  pendingCode = "";
+  const code = pendingCode, name = pendingName;
+  pendingCode = pendingName = "";
   if (groupOf()) return toast("Je zit al in een groep voor dit team.");
-  openGroupDialog(showCode(code));
+  openGroupDialog(showCode(code), name);
 }
 
 function selectTeam(key, makeFav = true) {
@@ -931,16 +957,17 @@ async function main() {
     return;
   }
   render();
-  // Link met #groep=CODE&team=<sleutel>: kies dat team en open het deelnemen-blad met de code al ingevuld.
-  // Zonder team in de link (oudere links) vragen we je eerst een team te kiezen.
-  const hash = shared.enabled && /^#groep=([A-Za-z0-9]+)(?:&team=([^&]+))?$/.exec(location.hash);
+  // Link met #groep=CODE&team=<sleutel>[&naam=<naam>]: kies dat team en open het deelnemen-blad met de code (en bij een
+  // herstel-link je naam) al ingevuld. Zonder team in de link (oudere links) vragen we je eerst een team te kiezen.
+  const hash = shared.enabled && /^#groep=([A-Za-z0-9]+)(?:&team=([^&]+))?(?:&naam=([^&]+))?$/.exec(location.hash);
   if (hash) {
     history.replaceState(null, "", location.pathname + location.search);
     const code = shared.cleanCode(hash[1]);
-    let team = "";
-    try { team = decodeURIComponent(hash[2] || ""); } catch { /* ongeldige link */ }
+    let team = "", name = "";
+    try { team = decodeURIComponent(hash[2] || ""); name = decodeURIComponent(hash[3] || "").trim().slice(0, 30); } catch { /* ongeldige link */ }
     if (shared.validCode(code)) {
       pendingCode = code;
+      pendingName = name;
       if (teamIndex.has(team)) { // de link hoort bij een team: dat team kiezen
         if (state.groups[team]) { pendingCode = ""; toast("Je zit al in de groep van dit team."); }
         else if (state.active === team && !state.searching) offerPendingJoin();
