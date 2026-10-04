@@ -26,6 +26,12 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   De link (`#groep=<code>&team=<sleutel>`, via *Kopieer link*) kiest meteen het juiste team en opent het deelnemen-blad met de code ingevuld; je vult alleen je naam in. Oudere links zonder team vragen je eerst een team te kiezen.
 - Per team heb je één groep. Je keuze (Ja/Misschien/Nee) zie je terug bij je teamgenoten. Onder elke wedstrijd staat ook met `○`
   wie van de leden nog niets heeft gekozen.
+- Onder *beheer* staat een **ledenlijst** met per lid hoeveel komende wedstrijden zijn ingevuld, en bij elk ander lid *Verwijder*.
+  Dat is bedoeld voor "spoken": een toestel dat zijn opslag kwijt is, krijgt bij opnieuw deelnemen een nieuwe anonieme gebruiker
+  en laat zijn oude naam met oude keuzes achter. Verwijderen haalt het lid-document en de keuzes weg. Een lid dat de app nog gebruikt,
+  maakt zijn lid-document bij het volgende laden vanzelf weer aan. **Let op:** de meegeleverde `firestore.rules` staan alleen
+  verwijderen van je eigen documenten toe; om anderen te kunnen opruimen moeten de regels dat voor leden van de groep toestaan
+  (en moet die aangepaste versie in de Firebase-console gepubliceerd zijn). Tot die tijd meldt de app "Het is niet gelukt".
 - Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
   gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
 - Zit je in een groep, dan vraagt de app de browser je opslag te bewaren (`navigator.storage.persist`) en legt de installeerhint uit
@@ -139,8 +145,6 @@ De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Ac
 ## Ideeën voor uitbreiding
 
 - Live bijwerken van de aanwezigheid (nu ververst die bij openen, na je keuze en als je terugkomt in de app) en opruimen van oude `rsvp`-documenten.
-- Groepsbeheer: ledenlijst onder *beheer* met *verwijder* (ook voor "spoken" van toestellen die hun opslag kwijt zijn; vraagt in
-  `firestore.rules` verwijderrecht op andermans lid-document en op keuzes van een verdwenen lid).
 - Herstel na verlies van opslag: een herstel-link met je naam, en bij deelnemen met een bestaande naam "Ben jij dit? Neem keuzes over"
   (keuzes kopiëren naar de nieuwe uid, oude lid opruimen, en in `reconcile` ook van groep naar toestel synchroniseren).
 - Aanwezigheid doorsturen: keuzes in de uitnodigingslink (sleutel per wedstrijd op datum), de ontvanger bevestigt in de Geef-door-modus.

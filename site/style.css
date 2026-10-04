@@ -220,3 +220,11 @@ dialog.sheet .notice { margin: 8px 0 0; }
 /* Deel-overzicht in het groepsblad en de installeerhint: toelichting onder de knop */
 dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 .who-open > span:first-child { color: var(--muted); }
+
+/* Ledenlijst in het beheerblad */
+.m-head { margin: 16px 0 0; font-size: .95rem; }
+.members { list-style: none; margin: 4px 0 0; padding: 0; }
+.members li { display: flex; align-items: center; gap: 8px; min-height: 44px; border-top: 1px solid var(--line); }
+.members .m-name { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.members .m-count { font-size: .8rem; white-space: nowrap; }
+.members button.link { margin: 0; padding: 0 0 0 8px; min-height: 44px; white-space: nowrap; }

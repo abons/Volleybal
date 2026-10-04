@@ -78,7 +78,8 @@ export function newCode() {
 export const cleanCode = (s) => String(s).toUpperCase().replace(/[^A-Z0-9]/g, "");
 export const validCode = (c) => c.length === CODE_LENGTH && [...c].every((ch) => ALPHABET.includes(ch));
 
-const writeMember = async (code, name) => {
+// Lid-document schrijven of herstellen (bijvoorbeeld nadat een teamgenoot je als "spook" heeft verwijderd).
+export const writeMember = async (code, name) => {
   const uid = await myUid();
   return call(`/groups/${code}/members/${uid}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid, name }) }) });
 };
@@ -102,7 +103,8 @@ async function query(code, where) {
   return rows.filter((r) => r.document).map((r) => ({ id: r.document.name.split("/").pop(), ...plain(r.document) }));
 }
 const gone = (e) => { if (!/404/.test(e.message)) throw e; };
-const mine = async (code) => query(code, { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: str(await myUid()) } });
+const ofUid = (code, uid) => query(code, { fieldFilter: { field: { fieldPath: "uid" }, op: "EQUAL", value: str(uid) } });
+const mine = async (code) => ofUid(code, await myUid());
 
 // Naam wijzigen: lid-document en al mijn keuzes in de groep krijgen de nieuwe naam.
 export async function rename(code, name) {
@@ -110,11 +112,18 @@ export async function rename(code, name) {
   await Promise.all((await mine(code)).map((r) => call(`/groups/${code}/rsvp/${r.id}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid: r.uid, match: r.match, start: r.start, name, status: r.status }) }) })));
 }
 
+// Een lid met zijn keuzes uit de groep halen: eerst het lid-document (faalt dat, dan blijft alles zoals het was), daarna de keuzes.
+// Voor een ander lid moet firestore.rules dat toestaan; bedoeld voor "spoken" van toestellen die hun opslag kwijt zijn.
+export async function removeMember(code, uid) {
+  await call(`/groups/${code}/members/${uid}`, { method: "DELETE" }).catch(gone);
+  await Promise.all((await ofUid(code, uid)).map((r) => call(`/groups/${code}/rsvp/${r.id}`, { method: "DELETE" }).catch(gone)));
+}
+
 // Verlaat de groep: eerst mijn lidmaatschap (faalt dat, dan blijft alles zoals het was), daarna mijn keuzes opruimen.
 export async function leaveGroup(code) {
   const uid = await myUid();
   await call(`/groups/${code}/members/${uid}`, { method: "DELETE" }).catch(gone);
-  try { await Promise.all((await mine(code)).map((r) => call(`/groups/${code}/rsvp/${r.id}`, { method: "DELETE" }).catch(gone))); } catch { /* best effort */ }
+  try { await Promise.all((await ofUid(code, uid)).map((r) => call(`/groups/${code}/rsvp/${r.id}`, { method: "DELETE" }).catch(gone))); } catch { /* best effort */ }
 }
 
 async function listAll(path) {

@@ -120,8 +120,13 @@ async function loadOthers() {
     if (stale()) return;
     others = map;
     memberList = list;
-    memberCount = list.length;
     state.shareError = false;
+    // Heeft een teamgenoot mij als "spook" verwijderd terwijl ik de app nog gebruik? Dan word ik weer lid.
+    if (state.name && !viewing() && !list.some((o) => o.uid === myUid)) {
+      memberList = [...list, { uid: myUid, name: state.name }];
+      shared.writeMember(code, state.name).catch(() => {});
+    }
+    memberCount = memberList.length;
     // eigen keuzes die in de groep ontbreken of afwijken, gelijktrekken (op de achtergrond)
     const mineRemote = [...map.entries()].flatMap(([match, l]) => l.filter((o) => o.uid === myUid).map((o) => ({ ...o, match })));
     if (!viewing()) reconcile(code, mineRemote).catch(() => {});
@@ -554,6 +559,22 @@ function groupLine() {
   return `<p class="muted share">${state.shareError ? "Groepsleden laden lukt nu niet. " : ""}Groep <b>${esc(showCode(code))}</b>${viewing() ? " · je kijkt mee" : ""}${memberCount ? ` · ${memberCount} ${memberCount === 1 ? "lid" : "leden"}` : ""} · <button class="link inline" id="g-open">beheer</button></p>`;
 }
 
+// Ledenlijst voor het beheerblad: per lid hoeveel komende wedstrijden zijn ingevuld, en een knop om een "spook" te verwijderen.
+function membersHtml() {
+  if (!memberList.length) return "";
+  const upcoming = upcomingOf(state.matches || []);
+  const filled = (uid) => upcoming.filter((m) => (uid === myUid ? attendance.get(m.i) : (others?.get(m.i) || []).some((o) => o.uid === uid))).length;
+  const rows = [...memberList].sort((a, b) => byName(a.name || "", b.name || "")).map((o) => {
+    const me = o.uid === myUid;
+    const n = filled(o.uid);
+    const count = !others || !upcoming.length ? "" : n ? `${n} van ${upcoming.length} ingevuld` : "nog niets ingevuld";
+    return `<li><span class="m-name">${esc(me ? state.name : o.name || "?")}${me ? ` <span class="muted">(jij)</span>` : ""}</span><span class="muted m-count">${count}</span>${me ? "" : `<button class="link" data-remove="${esc(o.uid)}" aria-label="Verwijder ${esc(o.name || "dit lid")} uit de groep">Verwijder</button>`}</li>`;
+  }).join("");
+  return `<h4 class="m-head">Leden (${memberList.length})</h4>
+    <ul class="members">${rows}</ul>
+    <p class="muted hint">Staat iemand dubbel of is iemand gestopt? Verwijder dat lid; de keuzes verdwijnen uit de groep. Wie de app nog gebruikt, komt vanzelf terug.</p>`;
+}
+
 function groupDialogHtml(prefill = "") {
   const code = groupOf();
   const nameField = `<label class="field">Je naam<input id="g-name" type="text" maxlength="30" autocomplete="given-name" value="${esc(state.name)}" placeholder="Bijvoorbeeld Axel"></label>`;
@@ -564,6 +585,7 @@ function groupDialogHtml(prefill = "") {
     <div class="row2"><button id="g-copy">${ico.link} Kopieer code</button><button id="g-link">${ico.link} Kopieer link</button></div>
     <button id="g-share"${upcomingOf(state.matches || []).length ? "" : " disabled"}>${ico.share} Deel wie er komt</button>
     <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
+    ${membersHtml()}
     ${viewing() ? `<p class="muted">Je kijkt alleen mee. Vul je naam in om zelf je aanwezigheid door te geven.</p>` : ""}
     ${nameField}<button id="g-rename">${viewing() ? "Meedoen met naam" : "Naam opslaan"}</button>
     <p id="g-err" class="notice" role="alert" hidden></p>
@@ -663,6 +685,18 @@ function onGroupClick(e) {
     const text = id === "g-copy" ? showCode(code) : inviteLink();
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : "Link gekopieerd."), () => prompt("Kopieer:", text));
   } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
+  else if (btn?.dataset.remove) groupAction(btn, async () => {
+    const uid = btn.dataset.remove;
+    const who = memberList.find((o) => o.uid === uid)?.name || "dit lid";
+    if (!confirm(`${who} uit de groep verwijderen? De keuzes van ${who} verdwijnen uit de groep. Gebruikt ${who} de app nog, dan verschijnt ${who} vanzelf weer.`)) return;
+    await shared.removeMember(groupOf(), uid);
+    memberList = memberList.filter((o) => o.uid !== uid);
+    memberCount = memberList.length;
+    for (const list of others?.values() || []) { const i = list.findIndex((o) => o.uid === uid); if (i >= 0) list.splice(i, 1); }
+    toast(`${who} is uit de groep verwijderd.`);
+    openGroupDialog(); // blad opnieuw tekenen met de nieuwe lijst
+    refreshShared();
+  });
   else if (id === "g-leave") groupAction(btn, async () => {
     if (!confirm("Groep verlaten? Je keuzes verdwijnen uit de groep; op dit toestel blijven ze staan.")) return;
     const code = groupOf();
