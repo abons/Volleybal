@@ -1,11 +1,12 @@
 :root {
+  color-scheme: light dark;
   --bg: #f5f7fb; --card: #fff; --text: #14213d; --muted: #5b6785; --line: #e1e6f0;
   --line-strong: #6b7794; --accent: #1d4ed8; --accent-text: #fff; --soft: #e8eefc; --home: #0f766e; --away: #9a3f06; --loss: #b91c1c;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0e1424; --card: #172036; --text: #eaf0ff; --muted: #9aa7c7; --line: #2a3556;
-    --line-strong: #5f6d94; --accent: #6c93ff; --accent-text: #0e1424; --soft: #212d4b; --home: #5eead4; --away: #fbbf24; --loss: #f87171;
+    --bg: #0e1424; --card: #172036; --text: #eaf0ff; --muted: #aab6d4; --line: #3a4770;
+    --line-strong: #5f6d94; --accent: #7da0ff; --accent-text: #0e1424; --soft: #26335a; --home: #5eead4; --away: #fbbf24; --loss: #f87171;
   }
 }
 * { box-sizing: border-box; }
@@ -72,7 +73,7 @@ details summary { cursor: pointer; color: var(--muted); padding: 10px 0; min-hei
 details.card summary { padding: 0; display: flex; align-items: center; }
 .notice { padding: 12px; border-radius: 10px; background: var(--soft); }
 .fill-warn { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0; }
-.fill-warn button { flex: none; min-height: 40px; border-color: var(--accent); color: var(--accent); }
+.fill-warn button { flex: none; min-height: 48px; border-color: var(--accent); border-width: 1.5px; color: var(--accent); }
 #toast {
   position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
   background: var(--text); color: var(--bg); padding: 10px 16px; border-radius: 10px; opacity: 0;
@@ -97,7 +98,7 @@ button.link { border: 0; background: none; color: var(--accent); padding: 0 8px;
 
 .tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; margin: 12px 0 0; padding: 3px; background: var(--soft); border-radius: 12px; }
 .tabs button { min-height: 48px; border: 0; background: none; border-radius: 10px; padding: 8px 4px; color: var(--muted); }
-.tabs button[aria-pressed=true] { background: var(--card); font-weight: 700; color: var(--accent); box-shadow: inset 0 -3px 0 var(--accent), 0 1px 3px rgba(0,0,0,.2); }
+.tabs button[aria-pressed=true] { background: var(--card); font-weight: 700; color: var(--accent); }
 .vs.plain { font-weight: 400; }
 .vs.plain b { font-weight: 700; }
 .score { text-align: right; line-height: 1.2; }
@@ -170,7 +171,7 @@ dialog.sheet:not([open]) { display: none; }
 .att-box { margin-top: 2px; }
 .att-now { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; padding: 4px 0; border: 0; border-radius: 0; background: none; color: var(--muted); font-size: .9rem; font-weight: 500; justify-content: flex-start; text-align: left; white-space: nowrap; }
 .dot { background: var(--c); width: 1rem; height: 1rem; border-radius: 50%; display: inline-grid; place-items: center; font-size: .65rem; line-height: 1; font-weight: 800; color: var(--accent-text); flex: none; }
-.who { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 4px 0 4px; font-size: .8rem; line-height: 1.35; color: var(--muted); }
+.who { display: flex; flex-wrap: wrap; gap: 0 12px; margin: 4px 0 4px; font-size: .85rem; line-height: 1.35; color: var(--muted); }
 .who-yes > span:first-child { color: var(--home); } .who-maybe > span:first-child { color: var(--away); } .who-no > span:first-child { color: var(--loss); }
 .who span[aria-hidden] { font-weight: 800; }
 
@@ -192,8 +193,8 @@ dialog.sheet .notice { margin: 8px 0 0; }
 /* Geef-door-modus: knop naast de groepsregel */
 .modebar { display: flex; align-items: center; justify-content: space-between; gap: 8px; border-bottom: 1px solid var(--line); margin-bottom: 4px; }
 .modebar .share { margin: 0; padding: 4px 0; }
-.modebar button { flex: none; margin-left: auto; min-height: 40px; border-color: var(--accent); color: var(--accent); }
-.modebar button.on { background: var(--accent); color: var(--accent-text); }
+.modebar button { flex: none; margin-left: auto; min-height: 48px; border-color: transparent; background: none; color: var(--accent); }
+.modebar button.on { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 
 /* Kleur: Ja groen, Misschien oranje, Nee rood. Glyph + tekst dragen de betekenis; kleur is extra. */
 .att-yes { --c: var(--home); } .att-maybe { --c: var(--away); } .att-no { --c: var(--loss); }
@@ -235,3 +236,12 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 .proposal { list-style: none; margin: 8px 0; padding: 0; }
 .proposal li { display: flex; align-items: center; gap: 8px; min-height: 32px; font-size: .95rem; }
 .proposal li > span:first-child { font-weight: 800; }
+
+/* Hiërarchie: één duidelijke waarschuwing, rustige locaties, sterkere rijkop */
+.fill-warn { box-shadow: inset 3px 0 0 var(--away); }
+.when .d { font-size: 1rem; font-weight: 700; }
+.when .t { font-size: .9rem; }
+.vs { font-size: 1.05rem; }
+.where { font-size: .9rem; }
+.where a { color: var(--muted); text-decoration: none; }
+.where a:active { text-decoration: underline; }
