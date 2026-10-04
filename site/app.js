@@ -1,6 +1,7 @@
 // Volleybal-PWA: team zoeken, favoriet lokaal bewaren, wedstrijden naar je agenda.
 
 import * as shared from "./shared.js";
+import { sameStart, currentFor, staleIds, shouldPush, shouldDrop } from "./fresh.js";
 
 const NEVOBO = "api.nevobo.nl";
 const TZ = "Europe/Amsterdam";
@@ -102,8 +103,8 @@ async function reconcile(code, list) {
   const jobs = [];
   for (const m of upcomingOf(state.matches || [])) {
     const mineNow = attendance.get(m.i), r = remote.get(m.i);
-    if (mineNow && (!r || r.status !== mineNow || r.name !== state.name)) jobs.push(pushMine(m));
-    else if (!mineNow && r) jobs.push(shared.put({ code, match: m.i, start: m.s, name: state.name, status: null }));
+    if (shouldPush(r, m, mineNow, state.name)) jobs.push(pushMine(m));
+    else if (shouldDrop(r, m, mineNow)) jobs.push(shared.put({ code, match: m.i, start: m.s, name: state.name, status: null }));
   }
   await Promise.all(jobs);
 }
@@ -324,7 +325,7 @@ const GLYPH = { yes: "✓", maybe: "?", no: "✕", open: "○" };
 const byName = (a, b) => a.localeCompare(b, "nl");
 // Keuzes bij een wedstrijd: die van teamgenoten uit de groep en je eigen keuze zoals die op dit toestel staat.
 function whoList(m) {
-  const list = (others?.get(m.i) || []).filter((o) => o.uid !== myUid);
+  const list = currentFor(others?.get(m.i), m).filter((o) => o.uid !== myUid);
   const mine = attendance.get(m.i);
   if (mine && state.name && !viewing()) list.push({ uid: myUid, name: state.name, status: mine });
   return list;
@@ -624,7 +625,7 @@ function groupLine() {
 function membersHtml() {
   if (!memberList.length) return "";
   const upcoming = upcomingOf(state.matches || []);
-  const filled = (uid) => upcoming.filter((m) => (uid === myUid ? attendance.get(m.i) : (others?.get(m.i) || []).some((o) => o.uid === uid))).length;
+  const filled = (uid) => upcoming.filter((m) => (uid === myUid ? attendance.get(m.i) : currentFor(others?.get(m.i), m).some((o) => o.uid === uid))).length;
   const rows = [...memberList].sort((a, b) => byName(a.name || "", b.name || "")).map((o) => {
     const me = o.uid === myUid;
     const n = filled(o.uid);
@@ -690,9 +691,14 @@ async function claimGhost(code, name) {
   if (!ghosts.length) return false;
   if (!confirm(`Er doet al een ${ghosts[0].name} mee in deze groep, vanaf een ander toestel. Ben jij dat? Dan nemen we die keuzes over en verdwijnt het oude lid.`)) return false;
   const from = new Date(Date.now() - 864e5).toISOString().slice(0, 10).replace(/-/g, "");
+  await matchesLoaded;
+  const program = state.matches ? new Map(state.matches.map((m) => [m.i, m])) : null; // zonder programma (offline) kunnen we de start niet controleren
   for (const g of ghosts) {
     for (const r of await shared.rsvpsOf(code, g.uid)) {
-      if (r.match && r.status && (r.start || "") >= from && !attendance.get(r.match)) attendance.set(r.match, r.status, r.start);
+      if (!r.match || !r.status || (r.start || "") < from || attendance.get(r.match)) continue;
+      const m = program?.get(r.match);
+      if (program && !(m && sameStart(r.start, m.s))) continue; // wedstrijd verzet of niet meer in het programma: de keuze geldt niet meer
+      attendance.set(r.match, r.status, r.start);
     }
     await shared.removeMember(code, g.uid);
   }
@@ -893,6 +899,16 @@ async function loadTables() {
   if (state.tab === "stand" && !state.searching) $("#matches").innerHTML = standHtml(teamIndex.get(key));
 }
 
+// Eigen keuzes voor wedstrijden die van starttijd veranderd zijn wissen: de speler heeft die nieuwe tijd nooit gezien.
+// Het document in de groep ruimt reconcile daarna op. Alleen wedstrijden van het geladen team tellen mee.
+function dropStale() {
+  const ids = staleIds(state.att, state.matches);
+  if (!ids.length) return;
+  for (const id of ids) delete state.att[id];
+  save();
+  toast(ids.length === 1 ? "Een wedstrijd is verzet. Kies opnieuw of je erbij bent." : `${ids.length} wedstrijden zijn verzet. Kies opnieuw of je erbij bent.`);
+}
+
 let matchesLoaded = Promise.resolve(); // laatste loadMatches, om op te wachten
 function loadMatches() { return (matchesLoaded = loadMatchesNow()); }
 async function loadMatchesNow() {
@@ -911,6 +927,7 @@ async function loadMatchesNow() {
       state.matches = (j.m || []).filter((m) => !isNaN(parseDt(m.s)));
       state.results = (j.r || []).filter((r) => !isNaN(new Date(r.s)));
       state.poules = j.p || [];
+      dropStale();
     }
   } catch {
     state.error = "Geen internet, en dit team heb je nog niet eerder geopend. Probeer het opnieuw zodra je weer verbinding hebt.";

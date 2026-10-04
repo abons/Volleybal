@@ -32,6 +32,8 @@ jobs:
           path: _data
           key: nevobo-data-${{ github.run_id }}
           restore-keys: nevobo-data-
+      - name: Tests
+        run: node --test "scripts/test-*.mjs"
       - name: Bouw de site
         run: node scripts/build.mjs
         env:

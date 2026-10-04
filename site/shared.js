@@ -150,7 +150,8 @@ export async function put({ code, match, start, name, status }) {
   return call(path, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid, match, start, name, status }) }) });
 }
 
-// Keuzes in de groep voor aankomende wedstrijden (start >= gisteren), per wedstrijd: Map(match -> [{ uid, name, status }]).
+// Keuzes in de groep voor aankomende wedstrijden (start >= gisteren), per wedstrijd: Map(match -> [{ uid, name, status, start }]).
+// `start` is de starttijd waarop de keuze is gegeven; vergelijk hem met de huidige start van de wedstrijd (fresh.js).
 export async function rsvps(code) {
   const d = new Date(Date.now() - 864e5);
   const from = `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
@@ -158,7 +159,7 @@ export async function rsvps(code) {
   for (const r of await query(code, { fieldFilter: { field: { fieldPath: "start" }, op: "GREATER_THAN_OR_EQUAL", value: str(from) } })) {
     if (!r.match) continue;
     if (!out.has(r.match)) out.set(r.match, []);
-    out.get(r.match).push({ uid: r.uid, name: r.name || "?", status: r.status });
+    out.get(r.match).push({ uid: r.uid, name: r.name || "?", status: r.status, start: r.start });
   }
   return out;
 }

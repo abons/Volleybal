@@ -44,6 +44,14 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   het programma staan, worden overgeslagen.
 - Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
   gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
+- **Verzette wedstrijd**: Nevobo houdt het UID bij een verzette wedstrijd meestal gelijk. Een keuze bewaart daarom ook de starttijd
+  waarop hij is gegeven (`start`) en geldt alleen als die gelijk is aan de huidige starttijd van de wedstrijd (exacte vergelijking van de
+  UTC-string; ook een verschuiving van alleen het tijdstip telt). Een verouderde keuze van een teamgenoot telt niet mee: die staat bij
+  *nog niet gereageerd*, en ook niet in de teller onder *beheer*. Een eigen verouderde keuze wist de app bij het laden van het programma
+  (met een melding "kies opnieuw"), en `reconcile` ruimt je document in de groep op. Documenten van anderen blijven staan, want de regels
+  laten alleen je eigen keuzes verwijderen; ze worden genegeerd. Een ontbrekende `start` geldt als geldig. Een toestel met een ouder
+  programma overschrijft of verwijdert geen document met een nieuwere start. Het filter `start >= gisteren` van `rsvps()` betekent dat
+  een wedstrijd die naar een eerdere datum verschuift (buiten dat filter) niet via `reconcile` wordt opgeruimd; dat laten we zo.
 - Zit je in een groep, dan vraagt de app de browser je opslag te bewaren (`navigator.storage.persist`) en legt de installeerhint uit
   waarom installeren helpt: Safari wist gegevens van websites die je zeven dagen niet opent, van een app op het beginscherm niet.
 - **De code is de enige beveiliging.** Wie de code heeft, kan de groep zien en meedoen. Groepen zijn niet op te sommen
@@ -138,7 +146,8 @@ Voor wie hier later aan verder werkt (alles is in oktober 2026 met echte respons
 
 ## Testen
 
-Er is geen testsuite. Wat wel werkt: bouw met testdata in `_data/` (zie `scripts/build.mjs`: als `_data/` vers is wordt er niets opgehaald),
+`node --test "scripts/test-*.mjs"` draait de unit tests van de pure logica (nu `site/fresh.js`: wanneer een keuze nog geldt); de workflow doet dat vóór de build.
+Voor de rest is er geen testsuite. Wat wel werkt: bouw met testdata in `_data/` (zie `scripts/build.mjs`: als `_data/` vers is wordt er niets opgehaald),
 serveer `_site` lokaal en laat Playwright de flow doorlopen (zoeken, team kiezen, tabs, .ics-download, offline herladen).
 De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Actions is de betrouwbare test van de crawl.
 
