@@ -149,7 +149,7 @@ dialog.sheet::backdrop { background: rgba(0, 0, 0, .55); }
 .sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .sheet-head h3 { margin: 0; font-size: 1.05rem; text-transform: none; letter-spacing: 0; color: var(--text); }
 .sheet-head .star { margin-right: -8px; }
-.opt { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px; margin-top: 8px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card); color: var(--text); text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
+.opt { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; padding: 12px; margin-top: 8px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--card); color: var(--text); text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
 a.opt { border-color: var(--accent); background: var(--soft); }
 .opt .i { width: 1.5rem; height: 1.5rem; color: var(--accent); }
 .opt span { display: grid; gap: 2px; }
