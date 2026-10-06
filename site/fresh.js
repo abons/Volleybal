@@ -40,3 +40,24 @@ export function missingChoices(upcoming, filled) {
   const done = (upcoming || []).length - missing.length;
   return missing.length && done >= 3 && missing.length <= done ? missing : [];
 }
+
+// ---- Wijzigingen in de aanwezigheid van teamgenoten ----
+// Een volleybalteam heeft minstens 6 spelers nodig; zakt een wedstrijd daaronder, dan willen we dat meteen zien.
+export const ENOUGH = 6;
+
+// Momentopname van de keuzes van teamgenoten bij één wedstrijd: { uid: [status, naam] }.
+export const snapshotOf = (list) => Object.fromEntries((list || []).map((o) => [o.uid, [o.status, o.name]]));
+
+// Verschil tussen de vorige momentopname (base) en nu (cur) voor één wedstrijd. `mine` is 1 als ik zelf ja zeg:
+// ik tel mee voor "genoeg", maar mijn eigen keuze is geen wijziging.
+// Geeft { changes: [{ name, from, to }], before, now, dropped } terug; dropped = er waren genoeg spelers en nu niet meer.
+export function presenceDiff(base, cur, mine = 0) {
+  const changes = [];
+  const yes = (s) => Object.values(s).filter((v) => v[0] === "yes").length + mine;
+  for (const uid of new Set([...Object.keys(base), ...Object.keys(cur)])) {
+    const from = base[uid]?.[0] || null, to = cur[uid]?.[0] || null;
+    if (from !== to) changes.push({ name: (cur[uid] || base[uid])[1], from, to });
+  }
+  const before = yes(base), now = yes(cur);
+  return { changes, before, now, dropped: before >= ENOUGH && now < ENOUGH };
+}

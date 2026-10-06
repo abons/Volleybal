@@ -240,6 +240,11 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 
 /* Hiërarchie: één duidelijke waarschuwing, rustige locaties, sterkere rijkop */
 .fill-warn { box-shadow: inset 3px 0 0 var(--warn); }
+.presence { margin: 8px 0; box-shadow: inset 3px 0 0 var(--accent); }
+.presence.drop { box-shadow: inset 3px 0 0 var(--err); }
+.presence ul { margin: 6px 0 10px; padding-left: 18px; }
+.presence li.drop { color: var(--err); }
+.presence button { min-height: 48px; }
 .when .d { font-size: 1rem; font-weight: 700; }
 .when .t { font-size: .9rem; }
 .vs { font-size: 1.05rem; }

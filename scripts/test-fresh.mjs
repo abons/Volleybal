@@ -2,7 +2,7 @@
 // Draai met: node --test "scripts/test-*.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices } from "../site/fresh.js";
+import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices, presenceDiff } from "../site/fresh.js";
 
 const MOVED = { i: "083045eb753448140d4b3dd92f504d76", s: "20270306T160000Z" }; // was 27 feb
 const SAME = { i: "0d90975dd78f15c1a77ae665b61bf283", s: "20261114T170000Z" };
@@ -80,4 +80,20 @@ test("missingChoices: waarschuwt alleen als er veel is ingevuld en een paar ontb
   assert.deepEqual(missingChoices(ms(10), filledFirst(4)), []); // meer dan de helft ontbreekt
   assert.equal(missingChoices(ms(6), filledFirst(3)).length, 3); // precies de helft telt nog mee
   assert.deepEqual(missingChoices(undefined, filledFirst(3)), []);
+});
+
+test("presenceDiff: genoeg spelers, nu niet meer", () => {
+  const base = Object.fromEntries(names.slice(0, 6).map((n, k) => [`u${k}`, ["yes", n]]));
+  const cur = { ...base, u2: ["no", "Ronald"] };
+  const d = presenceDiff(base, cur);
+  assert.deepEqual(d.changes, [{ name: "Ronald", from: "yes", to: "no" }]);
+  assert.equal(d.before, 6); assert.equal(d.now, 5); assert.equal(d.dropped, true);
+  assert.equal(presenceDiff(base, cur, 1).dropped, false); // ik tel zelf ook mee
+});
+
+test("presenceDiff: onveranderd, verdwenen lid en tweede melding", () => {
+  const base = { u1: ["yes", "Jitse"], u2: ["maybe", "Casper"] };
+  assert.deepEqual(presenceDiff(base, base).changes, []);
+  assert.deepEqual(presenceDiff(base, { u1: ["yes", "Jitse"] }).changes, [{ name: "Casper", from: "maybe", to: null }]);
+  assert.equal(presenceDiff({ u1: ["yes", "Jitse"] }, {}).dropped, false); // er waren er nooit genoeg
 });

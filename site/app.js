@@ -1,7 +1,7 @@
 // Volleybal-PWA: team zoeken, favoriet lokaal bewaren, wedstrijden naar je agenda.
 
 import * as shared from "./shared.js";
-import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices } from "./fresh.js";
+import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices, snapshotOf, presenceDiff, ENOUGH } from "./fresh.js";
 
 const NEVOBO = "api.nevobo.nl";
 const TZ = "Europe/Amsterdam";
@@ -33,9 +33,9 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
 }
 function save() {
-  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups, watch: state.watch })); } catch { /* privémodus */ }
+  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups, watch: state.watch, seen: state.seen })); } catch { /* privémodus */ }
 }
-const state = { favs: [], active: null, att: {}, name: "", groups: {}, watch: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
+const state = { favs: [], active: null, att: {}, name: "", groups: {}, watch: {}, seen: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
 
 // ---- Aanwezigheid: per wedstrijd ja / misschien / nee ----
@@ -57,6 +57,7 @@ const attendance = {
 if (typeof state.name !== "string") state.name = "";
 if (typeof state.groups !== "object" || !state.groups || Array.isArray(state.groups)) state.groups = {};
 for (const [k, c] of Object.entries(state.groups)) if (!shared.validCode(String(c))) delete state.groups[k];
+if (typeof state.seen !== "object" || !state.seen || Array.isArray(state.seen)) state.seen = {};
 if (typeof state.watch !== "object" || !state.watch || Array.isArray(state.watch)) state.watch = {};
 // ---- Groep per team: de code is de enige beveiliging ----
 let others = null; // wedstrijd -> keuzes van groepsleden [{ uid, name, status }]
@@ -579,6 +580,7 @@ function renderTeam() {
       return;
     }
     if (e.target.closest("#g-open")) { openGroupDialog(); return; }
+    if (e.target.closest("#presence-ok")) return ackPresence();
     if (e.target.closest("#att-fill")) { // alle keuzeknoppen open en naar de eerste wedstrijd zonder keuze
       const first = missingChoices(upcomingOf(state.matches || []), (x) => attendance.get(x.i))[0];
       entering = true;
@@ -636,7 +638,40 @@ function fillWarningHtml() {
   const list = days.length > 3 ? `${days.slice(0, 3).join(", ")} en ${days.length - 3} meer` : days.join(", ");
   return `<div class="notice fill-warn" role="status"><span><b>${missing.length === 1 ? "1 wedstrijd" : `${missing.length} wedstrijden`} niet ingevuld</b>: ${esc(list)}.</span> <button class="small" id="att-fill">Vul nu in</button></div>`;
 }
-const refreshFill = () => { const el = $("#fill-warn"); if (el) el.innerHTML = fillWarningHtml(); };
+// Wat teamgenoten veranderd hebben sinds je het laatst zag. De vorige stand staat per team op dit toestel (state.seen)
+// en wordt pas bijgewerkt als je de melding wegtikt; een eerste bezoek en nieuwe of verzette wedstrijden zetten we stil als beginstand.
+const othersNow = (m) => snapshotOf(currentFor(others?.get(m.i), m).filter((o) => o.uid !== myUid));
+function presenceChanges() {
+  if (!others || !state.matches) return [];
+  const seen = state.seen[state.active] || (state.seen[state.active] = {});
+  const out = [];
+  let dirty = false;
+  for (const m of upcomingOf(state.matches)) {
+    const cur = othersNow(m), base = seen[m.i];
+    if (!base || base.s !== m.s) { seen[m.i] = { s: m.s, v: cur }; dirty = true; continue; }
+    const d = presenceDiff(base.v, cur, !viewing() && attendance.get(m.i) === "yes" ? 1 : 0);
+    if (d.changes.length) out.push({ m, ...d });
+  }
+  if (dirty) save();
+  return out;
+}
+function presenceHtml() {
+  const list = presenceChanges();
+  if (!list.length) return "";
+  const lines = list.map(({ m, changes, now, dropped }) => {
+    const who = changes.map((c) => `${esc(c.name)} ${c.from ? GLYPH[c.from] : GLYPH.open}→${c.to ? GLYPH[c.to] : GLYPH.open}`).join(", ");
+    return `<li${dropped ? ' class="drop"' : ""}><b>${esc(dayLabel(parseDt(m.s)))}</b>: ${who}. ${dropped ? `<b>Nu ${now} ja, minimaal ${ENOUGH} nodig.</b>` : `Nu ${now} ja.`}</li>`;
+  }).join("");
+  const dropped = list.some((x) => x.dropped);
+  return `<div class="notice presence${dropped ? " drop" : ""}" role="status"><b>${dropped ? "Let op: te weinig spelers" : "Aanwezigheid gewijzigd"}</b><ul>${lines}</ul><button class="small" id="presence-ok">Gezien</button></div>`;
+}
+function ackPresence() {
+  const seen = state.seen[state.active] = {};
+  for (const m of upcomingOf(state.matches || [])) seen[m.i] = { s: m.s, v: othersNow(m) };
+  save();
+  refreshFill();
+}
+function refreshFill() { const el = $("#fill-warn"); if (el) el.innerHTML = presenceHtml() + fillWarningHtml(); }
 
 const inviteLink = () => `${location.origin}${location.pathname}#groep=${groupOf()}&team=${encodeURIComponent(state.active)}`;
 
@@ -857,7 +892,7 @@ function programHtml(team) {
     ${problem()}${loading()}
     ${state.matches && !upcoming.length ? `<p class="muted">Geen komende wedstrijden. Het programma volgt later.</p>` : ""}
     ${upcoming.length ? modeBar() : shared.enabled ? groupLine() : ""}
-    <div id="fill-warn">${fillWarningHtml()}</div>
+    <div id="fill-warn">${presenceHtml()}${fillWarningHtml()}</div>
     ${upcoming.map((m) => matchRow(m, team)).join("")}
   </section>`;
 }
