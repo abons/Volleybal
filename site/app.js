@@ -720,11 +720,11 @@ function membersHtml() {
     const me = o.uid === myUid;
     const n = filled(o.uid);
     const count = !others || !upcoming.length ? "" : n ? `${n} van ${upcoming.length} ingevuld` : "nog niets ingevuld";
-    return `<li><span class="m-name">${esc(me ? state.name : o.name || "?")}${me ? ` <span class="muted">(jij)</span>` : ""}</span><span class="muted m-count">${count}</span>${me ? "" : `<button class="link" data-remove="${esc(o.uid)}" aria-label="Verwijder ${esc(o.name || "dit lid")} uit de groep">Verwijder</button>`}</li>`;
+    return `<li><span class="m-name">${esc(me ? state.name : o.name || "?")}${me ? ` <span class="muted">(jij)</span>` : ""}</span><span class="muted m-count">${count}</span>${me ? "" : `<span class="m-act"><button class="link" data-restore="${esc(o.uid)}" aria-label="Kopieer herstel-link voor ${esc(o.name || "dit lid")}">Herstel-link</button><button class="link" data-remove="${esc(o.uid)}" aria-label="Verwijder ${esc(o.name || "dit lid")} uit de groep">Verwijder</button></span>`}</li>`;
   }).join("");
   return `<h4 class="m-head">Leden (${memberList.length})</h4>
     <ul class="members">${rows}</ul>
-    <p class="muted hint">Staat iemand dubbel of is iemand gestopt? Verwijder dat lid; de keuzes verdwijnen uit de groep. Wie de app nog gebruikt, komt vanzelf terug.</p>`;
+    <p class="muted hint">Is iemand zijn toestel kwijt? Kopieer de herstel-link van dat lid en stuur hem door. Staat iemand dubbel of is iemand gestopt? Verwijder dat lid; de keuzes verdwijnen uit de groep. Wie de app nog gebruikt, komt vanzelf terug.</p>`;
 }
 
 function groupDialogHtml(prefill = "", prefillName = "") {
@@ -909,6 +909,12 @@ function onGroupClick(e) {
     toast(n ? `${n} ${n === 1 ? "keuze" : "keuzes"} overgenomen. Klopt het niet? Pas het hieronder aan.` : "Deze wedstrijden staan niet (meer) in het programma.");
     afterGroupChange(false, !!n);
   });
+  else if (btn?.dataset.restore) { // herstel-link voor een teamgenoot die zijn toestel of opslag kwijt is
+    const o = memberList.find((m) => m.uid === btn.dataset.restore);
+    if (!o) return;
+    const text = `${inviteLink()}&naam=${encodeURIComponent(o.name || "")}&id=${encodeURIComponent(o.uid)}`;
+    navigator.clipboard.writeText(text).then(() => toast(`Herstel-link voor ${o.name || "dit lid"} gekopieerd. Stuur hem naar ${o.name || "dit lid"}.`), () => prompt("Kopieer:", text));
+  }
   else if (btn?.dataset.remove) groupAction(btn, async () => {
     const uid = btn.dataset.remove;
     const who = memberList.find((o) => o.uid === uid)?.name || "dit lid";
