@@ -763,9 +763,11 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
 
+let linkName = ""; // naam uit een herstel-link die het deelnemen-blad heeft ingevuld
 function openGroupDialog(prefill = "", prefillName = "") {
   const dlg = $("#group-dlg");
   if (!dlg) return;
+  linkName = prefillName;
   dlg.innerHTML = groupDialogHtml(prefill, prefillName);
   if (!dlg.open) (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
   if (prefill) (prefillName ? $("#g-join") : $("#g-name"))?.focus(); // met naam uit de link hoef je alleen te bevestigen
@@ -773,13 +775,13 @@ function openGroupDialog(prefill = "", prefillName = "") {
 
 // Deelnemen met een naam die al in de groep staat onder een ander toestel: waarschijnlijk jijzelf, na verlies van je opslag
 // (nieuw toestel, browsergegevens gewist). Vraagt het, neemt dan de keuzes voor komende wedstrijden over (wat al op dit toestel
-// staat gaat voor) en ruimt het oude lid op. Geeft terug of er iets is overgenomen.
-async function claimGhost(code, name) {
+// staat gaat voor) en ruimt het oude lid op. Bij een herstel-link (trusted) is de wil al duidelijk en vragen we niet. Geeft terug of er iets is overgenomen.
+async function claimGhost(code, name, trusted = false) {
   const uid = await shared.myUid();
   const same = (a, b) => a.localeCompare(b, "nl", { sensitivity: "base" }) === 0;
   const ghosts = (await shared.members(code)).filter((o) => o.uid && o.uid !== uid && o.name && same(o.name, name));
   if (!ghosts.length) return false;
-  if (!confirm(`Er doet al een ${ghosts[0].name} mee in deze groep, vanaf een ander toestel. Ben jij dat? Dan nemen we die keuzes over en verdwijnt het oude lid.`)) return false;
+  if (!trusted && !confirm(`Er doet al een ${ghosts[0].name} mee in deze groep, vanaf een ander toestel. Ben jij dat? Dan nemen we die keuzes over en verdwijnt het oude lid.`)) return false;
   const from = new Date(Date.now() - 864e5).toISOString().slice(0, 10).replace(/-/g, "");
   await matchesLoaded;
   const program = state.matches ? new Map(state.matches.map((m) => [m.i, m])) : null; // zonder programma (offline) kunnen we de start niet controleren
@@ -851,7 +853,7 @@ function onGroupClick(e) {
     state.groups[state.active] = code;
     if (name) { state.name = name; delete state.watch[state.active]; } else state.watch[state.active] = true;
     save();
-    const claimed = name ? await claimGhost(code, name).catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; }) : false;
+    const claimed = name ? await claimGhost(code, name, !!linkName && name === linkName).catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; }) : false;
     const proposed = name && pendingProposal ? await applyProposal() : 0; // meegestuurde keuzes gaan voor
     if (proposed) save();
     toast(proposed ? `Je doet mee. ${proposed} ${proposed === 1 ? "keuze" : "keuzes"} overgenomen; klopt het niet, pas het aan.` : claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : name ? "Je doet mee met de groep. Geef je aanwezigheid door." : "Je kijkt mee. Vul later een naam in om mee te doen.");
