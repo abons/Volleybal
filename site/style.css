@@ -267,5 +267,23 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 .modebar { border-bottom-color: var(--line); }
 .main-action .btn.primary { flex: 1; }
 
+/* Eigen keuze en teamtellers op één regel: pil links, tellers rechts tegen de chevron, namen uitgeklapt onder elkaar.
+   Pil en <details> delen één rastercel; de pil ligt erboven en de summary laat links ruimte voor hem vrij. */
+.att-box:has(.att-now.set) { display: grid; --pill-w: 6rem; }
+.att-box:has(.att-now.att-maybe) { --pill-w: 6.8rem; }
+.att-box:has(.att-now.att-no) { --pill-w: 7.8rem; }
+.att-box:has(.att-now.set) > * { grid-area: 1 / 1; min-width: 0; }
+.att-box:has(.att-now.set) .att-now.set { align-self: start; justify-self: start; margin: 9px 0 0; z-index: 1; }
+.att-box:has(.att-now.set) .who-d { margin: 0; }
+.att-box:has(.att-now.set) .who-d summary { padding-left: var(--pill-w); justify-content: flex-end; flex-wrap: wrap; }
+.att-box:has(.att-now.set) .who-d summary::after { margin-left: 0; }
+.who-d summary { gap: 4px 10px; font-size: .95rem; }
+.who-d summary > span { color: var(--text); font-weight: 600; white-space: nowrap; }
+.who-d summary [aria-hidden] { margin-right: 3px; }
+.who-d summary .who-open > span:first-child { color: var(--text); }
+.who-d summary::after { min-width: 24px; text-align: center; }
+.who-d .who { flex-direction: column; gap: 3px; margin: 0 0 10px; font-size: .9rem; color: var(--text); }
+.who-d .who > span { padding-left: 1.5em; text-indent: -1.5em; }
+
 /* Actieve tab ook in licht thema duidelijk: onderrand in accentkleur */
 .tabs button[aria-pressed=true] { box-shadow: inset 0 -3px 0 var(--accent); }
