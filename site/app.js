@@ -218,7 +218,7 @@ function whoNote(m) {
   if (!shared.enabled || !others) return "";
   const groups = whoGroups(m);
   if (!groups.length) return "";
-  return `Aanwezigheid (stand van ${fTime.format(new Date())}):\n${groups.map(([k, names]) => `${GLYPH[k]} ${LABEL[k]} (${names.length}): ${names.join(", ")}`).join("\n")}`;
+  return `Aanwezigheid (stand van ${dayLabel(new Date())} ${fTime.format(new Date())}):\n${groups.map(([k, names]) => `${GLYPH[k]} ${LABEL[k]} (${names.length}): ${names.join(", ")}`).join("\n")}`;
 }
 function veventFor(m, withWho = false) {
   const start = parseDt(m.s);
@@ -367,7 +367,7 @@ function whoDetails(m) {
   if (!full) return "";
   const yes = whoGroups(m).find(([k]) => k === "yes")?.[1].length || 0;
   const counts = `<span class="who-yes"><span aria-hidden="true">${GLYPH.yes}</span><span class="sr-only">${LABEL.yes}: </span>${yes}</span>`;
-  return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="Wie komt er? Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
+  return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="${yes} ${yes === 1 ? "komt" : "komen"}. Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
 }
 function whoHtml(m) {
   if (!shared.enabled || !others) return "";
