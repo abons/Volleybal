@@ -213,7 +213,14 @@ function fold(line) {
   out.push(cur);
   return out.join("\r\n ");
 }
-function veventFor(m) {
+// Aanwezigheid als momentopname in de beschrijving van de afspraak; leeg zonder groep of zonder keuzes.
+function whoNote(m) {
+  if (!shared.enabled || !others) return "";
+  const groups = whoGroups(m);
+  if (!groups.length) return "";
+  return `Aanwezigheid (stand van ${fTime.format(new Date())}):\n${groups.map(([k, names]) => `${GLYPH[k]} ${LABEL[k]} (${names.length}): ${names.join(", ")}`).join("\n")}`;
+}
+function veventFor(m, withWho = false) {
   const start = parseDt(m.s);
   const end = m.e ? parseDt(m.e) : new Date(start.getTime() + 2 * 3600e3);
   const dt = (raw, d) => (raw.endsWith("Z") ? utc(d) : raw);
@@ -226,14 +233,16 @@ function veventFor(m) {
     `SUMMARY:${icsText(m.t)}`,
   ];
   if (m.l) lines.push(`LOCATION:${icsText(m.l)}`);
+  const note = withWho ? whoNote(m) : "";
+  if (note) lines.push(`DESCRIPTION:${icsText(note)}`);
   if (m.g) lines.push(`GEO:${m.g}`);
   if (m.u) lines.push(`URL:${m.u}`);
   lines.push("END:VEVENT");
   return lines.map(fold).join("\r\n");
 }
-function calendar(name, matches) {
+function calendar(name, matches, withWho = false) {
   const head = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Volleybal PWA//NL", "CALSCALE:GREGORIAN", `X-WR-CALNAME:${icsText(name)}`];
-  return [...head, ...matches.map(veventFor), "END:VCALENDAR"].join("\r\n") + "\r\n";
+  return [...head, ...matches.map((m) => veventFor(m, withWho)), "END:VCALENDAR"].join("\r\n") + "\r\n";
 }
 function download(filename, text) {
   const file = new File([text], filename, { type: "text/calendar" });
@@ -539,7 +548,7 @@ function renderTeam() {
   $("#all").addEventListener("click", () => {
     closeDlg();
     const up = upcomingOf(state.matches || []);
-    download(`${slug(team.naam)}.ics`, calendar(`Wedstrijden ${team.naam}`, up));
+    download(`${slug(team.naam)}.ics`, calendar(`Wedstrijden ${team.naam}`, up, true));
     toast(`${up.length} komende wedstrijden. Open het bestand om ze toe te voegen.`);
   });
   $("#copy").addEventListener("click", async () => {
@@ -603,7 +612,7 @@ function renderTeam() {
     const b = e.target.closest("[data-add]");
     const m = b && (state.matches || []).find((x) => x.i === b.dataset.add);
     if (!m) return;
-    download(`${slug(m.t)}-${m.s.slice(0, 8)}.ics`, calendar(m.t, [m]));
+    download(`${slug(m.t)}-${m.s.slice(0, 8)}.ics`, calendar(m.t, [m], true));
     toast("Open het bestand om de wedstrijd toe te voegen.");
   });
   renderMatches();
