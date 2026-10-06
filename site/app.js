@@ -366,7 +366,9 @@ function whoDetails(m) {
   const full = whoHtml(m);
   if (!full) return "";
   const yes = whoGroups(m).find(([k]) => k === "yes")?.[1].length || 0;
-  const counts = `<span class="who-yes"><span aria-hidden="true">${GLYPH.yes}</span><span class="sr-only">${LABEL.yes}: </span>${yes}</span>`;
+  const level = yes < ENOUGH ? " who-low" : yes === ENOUGH ? " who-edge" : "";
+  const hint = yes < ENOUGH ? `<span class="sr-only"> (te weinig, minimaal ${ENOUGH})</span>` : yes === ENOUGH ? `<span class="sr-only"> (precies genoeg)</span>` : "";
+  const counts = `<span class="who-yes${level}"><span aria-hidden="true">${GLYPH.yes}</span><span class="sr-only">${LABEL.yes}: </span>${yes}${hint}</span>`;
   return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="${yes} ${yes === 1 ? "komt" : "komen"}. Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
 }
 function whoHtml(m) {

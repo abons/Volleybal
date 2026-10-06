@@ -289,3 +289,7 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 
 /* Actieve tab ook in licht thema duidelijk: onderrand in accentkleur */
 .tabs button[aria-pressed=true] { box-shadow: inset 0 -3px 0 var(--accent); }
+
+/* Aantal "ja" onder de 6: rood; precies 6: oranje */
+.who-d summary > .who-low, .who-d summary > .who-low > span:first-child { color: var(--err); }
+.who-d summary > .who-edge, .who-d summary > .who-edge > span:first-child { color: var(--warn); }
