@@ -763,11 +763,11 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
 
-let linkName = ""; // naam uit een herstel-link die het deelnemen-blad heeft ingevuld
-function openGroupDialog(prefill = "", prefillName = "") {
+let linkName = "", linkId = ""; // naam en lid-id uit een herstel-link die het deelnemen-blad heeft ingevuld
+function openGroupDialog(prefill = "", prefillName = "", prefillId = "") {
   const dlg = $("#group-dlg");
   if (!dlg) return;
-  linkName = prefillName;
+  linkName = prefillName; linkId = prefillName ? prefillId : "";
   dlg.innerHTML = groupDialogHtml(prefill, prefillName);
   if (!dlg.open) (dlg.showModal ? dlg.showModal() : dlg.setAttribute("open", ""));
   if (prefill) (prefillName ? $("#g-join") : $("#g-name"))?.focus(); // met naam uit de link hoef je alleen te bevestigen
@@ -775,13 +775,17 @@ function openGroupDialog(prefill = "", prefillName = "") {
 
 // Deelnemen met een naam die al in de groep staat onder een ander toestel: waarschijnlijk jijzelf, na verlies van je opslag
 // (nieuw toestel, browsergegevens gewist). Vraagt het, neemt dan de keuzes voor komende wedstrijden over (wat al op dit toestel
-// staat gaat voor) en ruimt het oude lid op. Bij een herstel-link (trusted) is de wil al duidelijk en vragen we niet. Geeft terug of er iets is overgenomen.
-async function claimGhost(code, name, trusted = false) {
+// staat gaat voor) en ruimt het oude lid op. Een herstel-link bevat het id van het oude lid: dan nemen we precies dat lid over
+// zonder te vragen, en nooit een andere teamgenoot met dezelfde naam. Geeft terug of er iets is overgenomen.
+const sameName = (a, b) => a.localeCompare(b, "nl", { sensitivity: "base" }) === 0;
+async function claimGhost(code, name, fromId = "") {
   const uid = await shared.myUid();
-  const same = (a, b) => a.localeCompare(b, "nl", { sensitivity: "base" }) === 0;
-  const ghosts = (await shared.members(code)).filter((o) => o.uid && o.uid !== uid && o.name && same(o.name, name));
+  const members = await shared.members(code);
+  const ghosts = fromId
+    ? members.filter((o) => o.uid === fromId && o.uid !== uid && o.name && sameName(o.name, name))
+    : members.filter((o) => o.uid && o.uid !== uid && o.name && sameName(o.name, name));
   if (!ghosts.length) return false;
-  if (!trusted && !confirm(`Er doet al een ${ghosts[0].name} mee in deze groep, vanaf een ander toestel. Ben jij dat? Dan nemen we die keuzes over en verdwijnt het oude lid.`)) return false;
+  if (!fromId && !confirm(`Er doet al een ${ghosts[0].name} mee in deze groep, vanaf een ander toestel. Ben jij dat? Dan nemen we die keuzes over en verdwijnt het oude lid.`)) return false;
   const from = new Date(Date.now() - 864e5).toISOString().slice(0, 10).replace(/-/g, "");
   await matchesLoaded;
   const program = state.matches ? new Map(state.matches.map((m) => [m.i, m])) : null; // zonder programma (offline) kunnen we de start niet controleren
@@ -795,6 +799,23 @@ async function claimGhost(code, name, trusted = false) {
     await shared.removeMember(code, g.uid);
   }
   return true;
+}
+
+// Namen in een groep zijn uniek: staat er (na het eventuele overnemen) nog een andere teamgenoot met jouw naam, dan word je "Naam 2".
+// Geeft de naam terug die je nu in de groep hebt.
+async function ensureUniqueName(code, name) {
+  const uid = await shared.myUid();
+  const taken = (await shared.members(code)).filter((o) => o.uid !== uid && o.name).map((o) => o.name);
+  if (!taken.some((t) => sameName(t, name))) return name;
+  for (let n = 2; ; n++) {
+    const base = name.slice(0, 30 - String(n).length - 1).trimEnd();
+    const cand = `${base} ${n}`;
+    if (!taken.some((t) => sameName(t, cand))) {
+      await shared.rename(code, cand);
+      state.name = cand; save();
+      return cand;
+    }
+  }
 }
 
 // Vraag de browser onze opslag niet op te ruimen. Chrome en Safari beslissen stil (geïnstalleerd of veel gebruikt = ja);
@@ -853,10 +874,13 @@ function onGroupClick(e) {
     state.groups[state.active] = code;
     if (name) { state.name = name; delete state.watch[state.active]; } else state.watch[state.active] = true;
     save();
-    const claimed = name ? await claimGhost(code, name, !!linkName && name === linkName).catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; }) : false;
+    const claimed = name ? await claimGhost(code, name, linkName === name ? linkId : "").catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; }) : false;
+    const was = name;
+    if (name) name = await ensureUniqueName(code, name).catch(() => name);
+    const renamed = name !== was;
     const proposed = name && pendingProposal ? await applyProposal() : 0; // meegestuurde keuzes gaan voor
     if (proposed) save();
-    toast(proposed ? `Je doet mee. ${proposed} ${proposed === 1 ? "keuze" : "keuzes"} overgenomen; klopt het niet, pas het aan.` : claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : name ? "Je doet mee met de groep. Geef je aanwezigheid door." : "Je kijkt mee. Vul later een naam in om mee te doen.");
+    toast(renamed ? `Er doet al een ${was} mee; jij staat in de groep als ${name}. Aanpassen kan onder beheer.` : proposed ? `Je doet mee. ${proposed} ${proposed === 1 ? "keuze" : "keuzes"} overgenomen; klopt het niet, pas het aan.` : claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : name ? "Je doet mee met de groep. Geef je aanwezigheid door." : "Je kijkt mee. Vul later een naam in om mee te doen.");
     pendingProposal = null;
     afterGroupChange(false, !!name && (!claimed || !!proposed));
   });
@@ -867,12 +891,14 @@ function onGroupClick(e) {
     await shared.rename(code, name);
     state.name = name; delete state.watch[state.active]; save();
     const claimed = await claimGhost(code, name).catch(() => { toast("Keuzes overnemen is niet gelukt. Verwijder het oude lid onder beheer."); return false; });
-    toast(claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : wasViewing ? "Je doet mee. Geef je aanwezigheid door." : "Naam opgeslagen.");
+    const was = name;
+    name = await ensureUniqueName(code, name).catch(() => name);
+    toast(name !== was ? `Er doet al een ${was} mee; jij staat in de groep als ${name}.` : claimed ? "Welkom terug. Je eerdere keuzes zijn overgenomen." : wasViewing ? "Je doet mee. Geef je aanwezigheid door." : "Naam opgeslagen.");
     afterGroupChange(false, wasViewing && !claimed);
   });
   else if (id === "g-copy" || id === "g-link" || id === "g-restore") {
     const code = groupOf();
-    const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}`;
+    const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}&id=${encodeURIComponent(myUid)}`;
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : id === "g-link" ? "Link gekopieerd." : "Herstel-link gekopieerd. Bewaar hem in je notities."), () => prompt("Kopieer:", text));
   } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
   else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid");
@@ -1089,14 +1115,14 @@ async function renderClub() {
 }
 
 let pendingCode = ""; // code uit een uitnodigingslink die wacht tot er een team gekozen is
-let pendingName = ""; // naam uit een herstel-link
+let pendingName = "", pendingId = ""; // naam en lid-id uit een herstel-link
 
 function offerPendingJoin() {
   if (!pendingCode || !shared.enabled || !state.active || state.searching) return;
-  const code = pendingCode, name = pendingName;
-  pendingCode = pendingName = "";
+  const code = pendingCode, name = pendingName, id = pendingId;
+  pendingCode = pendingName = pendingId = "";
   if (groupOf()) return toast("Je zit al in een groep voor dit team.");
-  openGroupDialog(showCode(code), name);
+  openGroupDialog(showCode(code), name, id);
 }
 
 function selectTeam(key, makeFav = true) {
@@ -1155,6 +1181,7 @@ async function main() {
     if (shared.validCode(code)) {
       pendingCode = code;
       pendingName = name;
+      pendingId = (params.get("id") || "").trim().slice(0, 128);
       pendingProposal = parseProposal(params.get("a"), params.get("van"));
       if (teamIndex.has(team)) { // de link hoort bij een team: dat team kiezen
         if (state.groups[team] === code && pendingProposal) { // al lid: alleen de keuzes nog
