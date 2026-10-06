@@ -508,7 +508,7 @@ function renderTeam() {
           ${ico.link}<span><b>Link kopiëren</b><span class="muted">Plak de link in Google Agenda of een andere agenda-app.</span></span>
         </button>
         <button class="opt" id="all">
-          ${ico.download}<span><b>Downloaden met aanwezigheid</b><span class="muted">Komende wedstrijden als bestand, met wie komt in de beschrijving. Eenmalig: later wijzigingen komen niet mee.</span></span>
+          ${ico.download}<span><b>Downloaden met aanwezigheid</b><span class="muted">Komende wedstrijden als bestand, met de aanwezigheid in de beschrijving. Latere wijzigingen komen niet mee.</span></span>
         </button>
       </dialog>
     </section>
