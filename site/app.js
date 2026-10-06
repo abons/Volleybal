@@ -350,12 +350,13 @@ function whoGroups(m) {
   return groups.filter(([, names]) => names.length);
 }
 const LABEL = { yes: "Ja", maybe: "Misschien", no: "Nee", open: "Nog niet gereageerd" };
-// Ingeklapt: alleen de aantallen ("✓ 8 ? 1 ○ 2"); tikken toont de namen.
+// Ingeklapt: alleen het aantal dat komt ("✓ 8"); tikken toont per keuze de namen.
 const whoOpen = new Set(); // wedstrijden waarvan de namen uitgeklapt zijn; blijft staan bij verversen
 function whoDetails(m) {
   const full = whoHtml(m);
   if (!full) return "";
-  const counts = whoGroups(m).map(([k, names]) => `<span class="who-${k}"><span aria-hidden="true">${GLYPH[k]}</span><span class="sr-only">${LABEL[k]}: </span>${names.length}</span>`).join(" ");
+  const yes = whoGroups(m).find(([k]) => k === "yes")?.[1].length || 0;
+  const counts = `<span class="who-yes"><span aria-hidden="true">${GLYPH.yes}</span><span class="sr-only">${LABEL.yes}: </span>${yes}</span>`;
   return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="Wie komt er? Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
 }
 function whoHtml(m) {
