@@ -91,7 +91,7 @@ test("presenceDiff: genoeg spelers, nu niet meer", () => {
   assert.equal(presenceDiff(base, cur, 1).dropped, false); // ik tel zelf ook mee
 });
 
-test("presenceDiff: onveranderd, verdwenen lid en tweede melding", () => {
+test("presenceDiff: onveranderd, verdwenen keuze en nooit genoeg", () => {
   const base = { u1: ["yes", "Jitse"], u2: ["maybe", "Casper"] };
   assert.deepEqual(presenceDiff(base, base).changes, []);
   assert.deepEqual(presenceDiff(base, { u1: ["yes", "Jitse"] }).changes, [{ name: "Casper", from: "maybe", to: null }]);

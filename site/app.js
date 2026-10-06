@@ -58,6 +58,7 @@ if (typeof state.name !== "string") state.name = "";
 if (typeof state.groups !== "object" || !state.groups || Array.isArray(state.groups)) state.groups = {};
 for (const [k, c] of Object.entries(state.groups)) if (!shared.validCode(String(c))) delete state.groups[k];
 if (typeof state.seen !== "object" || !state.seen || Array.isArray(state.seen)) state.seen = {};
+for (const c of Object.keys(state.seen)) if (!Object.values(state.groups).includes(c)) delete state.seen[c]; // baseline hoort bij de groep; verlaten groepen ruimen we op
 if (typeof state.watch !== "object" || !state.watch || Array.isArray(state.watch)) state.watch = {};
 // ---- Groep per team: de code is de enige beveiliging ----
 let others = null; // wedstrijd -> keuzes van groepsleden [{ uid, name, status }]
@@ -643,13 +644,20 @@ function fillWarningHtml() {
 const othersNow = (m) => snapshotOf(currentFor(others?.get(m.i), m).filter((o) => o.uid !== myUid));
 function presenceChanges() {
   if (!others || !state.matches) return [];
-  const seen = state.seen[state.active] || (state.seen[state.active] = {});
+  const code = groupOf();
+  if (!code) return [];
+  const seen = state.seen[code] || (state.seen[code] = {});
+  const members = new Set(memberList.map((o) => o.uid));
   const out = [];
   let dirty = false;
-  for (const m of upcomingOf(state.matches)) {
+  const upcoming = upcomingOf(state.matches);
+  for (const id of Object.keys(seen)) if (state.matches.some((m) => m.i === id) && !upcoming.some((m) => m.i === id)) { delete seen[id]; dirty = true; }
+  for (const m of upcoming) {
     const cur = othersNow(m), base = seen[m.i];
     if (!base || base.s !== m.s) { seen[m.i] = { s: m.s, v: cur }; dirty = true; continue; }
-    const d = presenceDiff(base.v, cur, !viewing() && attendance.get(m.i) === "yes" ? 1 : 0);
+    // wie niet meer in de groep zit (verwijderd of vertrokken) is geen aanwezigheidswijziging
+    const was = Object.fromEntries(Object.entries(base.v).filter(([uid]) => members.has(uid)));
+    const d = presenceDiff(was, cur, !viewing() && state.name && attendance.get(m.i) === "yes" ? 1 : 0);
     if (d.changes.length) out.push({ m, ...d });
   }
   if (dirty) save();
@@ -666,7 +674,9 @@ function presenceHtml() {
   return `<div class="notice presence${dropped ? " drop" : ""}" role="status"><b>${dropped ? "Let op: te weinig spelers" : "Aanwezigheid gewijzigd"}</b><ul>${lines}</ul><button class="small" id="presence-ok">Gezien</button></div>`;
 }
 function ackPresence() {
-  const seen = state.seen[state.active] = {};
+  const code = groupOf();
+  if (!code) return;
+  const seen = state.seen[code] = {};
   for (const m of upcomingOf(state.matches || [])) seen[m.i] = { s: m.s, v: othersNow(m) };
   save();
   refreshFill();
