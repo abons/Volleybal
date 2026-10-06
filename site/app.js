@@ -224,16 +224,18 @@ function veventFor(m, withWho = false) {
   const start = parseDt(m.s);
   const end = m.e ? parseDt(m.e) : new Date(start.getTime() + 2 * 3600e3);
   const dt = (raw, d) => (raw.endsWith("Z") ? utc(d) : raw);
+  const note = withWho ? whoNote(m) : "";
   const lines = [
     "BEGIN:VEVENT",
-    `UID:${m.i}`, // zelfde UID als Nevobo: opnieuw toevoegen werkt dan een bestaande afspraak bij
+    // Zelfde UID als Nevobo: opnieuw toevoegen werkt dan een bestaande afspraak bij. Met aanwezigheid een eigen UID,
+    // want Google Agenda weigert een afspraak met het UID van een bestaande maar andere inhoud.
+    `UID:${note ? m.i.replace(/(@|$)/, "-aanwezigheid$1") : m.i}`,
     `DTSTAMP:${utc(new Date())}`,
     `DTSTART:${dt(m.s, start)}`,
     `DTEND:${m.e ? dt(m.e, end) : utc(end)}`,
     `SUMMARY:${icsText(m.t)}`,
   ];
   if (m.l) lines.push(`LOCATION:${icsText(m.l)}`);
-  const note = withWho ? whoNote(m) : "";
   if (note) lines.push(`DESCRIPTION:${icsText(note)}`);
   if (m.g) lines.push(`GEO:${m.g}`);
   if (m.u) lines.push(`URL:${m.u}`);
