@@ -854,7 +854,7 @@ async function groupAction(btn, fn) {
   } finally { btn.disabled = false; }
 }
 
-function onGroupClick(e) {
+async function onGroupClick(e) {
   const dlg = e.currentTarget;
   if (e.target === dlg || e.target.closest("#g-close")) return dlg.close();
   const btn = e.target.closest("button");
@@ -898,7 +898,7 @@ function onGroupClick(e) {
   });
   else if (id === "g-copy" || id === "g-link" || id === "g-restore") {
     const code = groupOf();
-    const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}&id=${encodeURIComponent(myUid)}`;
+    const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}&id=${encodeURIComponent(myUid || await shared.myUid().catch(() => ""))}`;
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : id === "g-link" ? "Link gekopieerd." : "Herstel-link gekopieerd. Bewaar hem in je notities."), () => prompt("Kopieer:", text));
   } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
   else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid");
