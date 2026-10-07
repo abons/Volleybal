@@ -293,3 +293,5 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 /* Aantal "ja" onder de 6: rood; precies 6: oranje */
 .who-d summary > .who-low, .who-d summary > .who-low > span:first-child { color: var(--err); }
 .who-d summary > .who-edge, .who-d summary > .who-edge > span:first-child { color: var(--warn); }
+
+.sub-row select { font: inherit; padding: 10px 12px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--card); color: var(--text); width: 100%; }

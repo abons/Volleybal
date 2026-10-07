@@ -528,7 +528,7 @@ function renderTeam() {
     if (e.key !== "Enter" || !e.target.matches("input")) return;
     e.preventDefault();
     const dlg = e.currentTarget;
-    const go = e.target.id === "g-code" || $("#g-code")?.value.trim() ? "#g-join" : $("#g-rename") ? "#g-rename" : "#g-create";
+    const go = $("#g-sub-save") ? "#g-sub-save" : e.target.id === "g-code" || $("#g-code")?.value.trim() ? "#g-join" : $("#g-rename") ? "#g-rename" : "#g-create";
     dlg.querySelector(go)?.click();
   });
 
@@ -741,8 +741,8 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
     ${viewing() ? "" : `<button id="g-forward"${upcomingMine().length ? "" : " disabled"}>${ico.share} Stuur je keuzes door</button>
     <p class="muted hint">Een link met jouw keuzes voor de komende wedstrijden. Wie hem opent, neemt ze in één keer over, handig als je altijd samen gaat.</p>`}
-    <button id="g-sub">${ico.share} Nodig een invaller uit</button>
-    <p class="muted hint">Een link met de naam van de invaller. Wie hem opent, doet als lid mee en geeft zelf zijn aanwezigheid door. Raakt hij zijn toestel kwijt, geef hem dan zijn herstel-link uit de ledenlijst hieronder.</p>
+    ${state.name ? `<button id="g-sub">${ico.share} Voeg een invaller toe</button>
+    <p class="muted hint">Een invaller is een lid zonder eigen toestel (nog): jij vult zijn aanwezigheid in. Daarna geef je hem zijn herstel-link uit de ledenlijst; als hij die opent, neemt hij zijn keuzes over.</p>` : ""}
     ${membersHtml()}
     ${viewing() ? "" : `<h4 class="m-head">Voor jezelf</h4>
     <button id="g-restore">${ico.link} Kopieer herstel-link</button>
@@ -764,6 +764,22 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <button class="btn primary" id="g-create">Nieuwe groep maken</button>
     <label class="field">Of neem deel met een code<input id="g-code" type="text" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="XXXXX-XXXXX"></label>
     <button id="g-join">${state.name ? "Deelnemen" : "Alleen kijken"}</button>
+    <p id="g-err" class="notice" role="alert" hidden></p>`;
+}
+
+// Invaller toevoegen: naam en per komende wedstrijd Ja / Misschien / Nee (of niets); komt in dezelfde blad.
+function subFormHtml() {
+  const team = teamIndex.get(state.active);
+  const rows = upcomingOf(state.matches || []).map((m) => {
+    const { isHome, opp } = sideOf(m, team);
+    const d = parseDt(m.s);
+    return `<label class="field sub-row">${esc(dayLabel(d))} ${fTime.format(d)} · ${esc(opp ? `${isHome ? "thuis" : "uit"} tegen ${opp}` : m.t)}
+      <select data-sub-m="${esc(m.i)}"><option value="">Niet invullen</option>${STATUS.map(([k, name]) => `<option value="${k}">${name}</option>`).join("")}</select></label>`;
+  }).join("");
+  return `<div class="sheet-head"><h3 id="group-title">Invaller toevoegen</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
+    <label class="field">Naam van de invaller<input id="g-name" type="text" maxlength="30" autocomplete="off" placeholder="Bijvoorbeeld Jitse"></label>
+    ${rows || `<p class="muted">Er zijn geen komende wedstrijden.</p>`}
+    <button id="g-sub-save">Toevoegen</button><button class="link" id="g-sub-back">Terug</button>
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
 
@@ -853,7 +869,7 @@ async function groupAction(btn, fn) {
   btn.disabled = true;
   try { await fn(name); }
   catch (e) {
-    err.textContent = e.message === "notfound" ? "Die code bestaat niet. Controleer hem en probeer opnieuw." : e.message === "name" ? "Vul eerst je naam in." : e.message === "code" ? "Een code heeft 10 tekens (letters en cijfers)." : "Het is niet gelukt. Controleer je verbinding en probeer het opnieuw.";
+    err.textContent = e.message === "notfound" ? "Die code bestaat niet. Controleer hem en probeer opnieuw." : e.message === "name" ? (document.querySelector("#g-sub-save") ? "Vul de naam van de invaller in." : "Vul eerst je naam in.") : e.message === "code" ? "Een code heeft 10 tekens (letters en cijfers)." : e.message === "dup" ? "Er staat al een lid met die naam in de groep." : "Het is niet gelukt. Controleer je verbinding en probeer het opnieuw.";
     if (err) err.hidden = false; else toast("Het is niet gelukt. Probeer het opnieuw.");
   } finally { btn.disabled = false; }
 }
@@ -904,11 +920,21 @@ async function onGroupClick(e) {
     const code = groupOf();
     const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}&id=${encodeURIComponent(myUid || await shared.myUid().catch(() => ""))}`;
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : id === "g-link" ? "Link gekopieerd." : "Herstel-link gekopieerd. Bewaar hem in je notities."), () => prompt("Kopieer:", text));
-  } else if (id === "g-sub") {
-    const name = (prompt("Naam van de invaller") || "").trim().slice(0, 30);
-    if (!name) return;
-    shareText(`Doe mee als invaller bij ${teamIndex.get(state.active)?.naam || "ons team"}: open de link, kijk wie er komt en geef je aanwezigheid door.\n${inviteLink()}&naam=${encodeURIComponent(name)}`, "Invaller uitnodigen", "Uitnodiging gekopieerd. Plak hem in een bericht aan de invaller.");
-  } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
+  } else if (id === "g-sub") { dlg.innerHTML = subFormHtml(); $("#g-name")?.focus(); }
+  else if (id === "g-sub-back") dlg.innerHTML = groupDialogHtml();
+  else if (id === "g-sub-save") groupAction(btn, async (name) => {
+    if (!name) throw new Error("name");
+    if (memberList.some((o) => o.name && sameName(o.name, name))) throw new Error("dup");
+    const byId = new Map((state.matches || []).map((m) => [m.i, m]));
+    const picks = [...dlg.querySelectorAll("[data-sub-m]")].filter((s) => s.value).map((s) => ({ match: s.dataset.subM, start: byId.get(s.dataset.subM)?.s || "", status: s.value }));
+    const uid = await shared.addProxyMember(groupOf(), name, picks);
+    memberList = [...memberList, { uid, name }];
+    memberCount = memberList.length;
+    toast(`${name} is toegevoegd. Geef ${name} zijn herstel-link uit de ledenlijst.`);
+    dlg.innerHTML = groupDialogHtml();
+    loadOthers();
+  });
+  else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
   else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid");
   else if (id === "p-skip") { pendingProposal = null; dlg.close(); }
   else if (id === "p-accept") groupAction(btn, async () => {

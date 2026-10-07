@@ -163,3 +163,18 @@ export async function rsvps(code) {
   }
   return out;
 }
+
+// Invaller toevoegen: een nieuwe anonieme gebruiker (eigen uid en token, alleen in het geheugen) schrijft zijn eigen lid-document en
+// keuzes, precies zoals zijn eigen toestel dat zou doen; firestore.rules hoeft dus niet te veranderen. Met zijn herstel-link
+// (`&naam=…&id=<uid>`) neemt de invaller later dat lid over. picks: [{ match, start, status }]. Geeft het uid terug.
+export async function addProxyMember(code, name, picks) {
+  const j = await post(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE.apiKey}`, { returnSecureToken: true });
+  const uid = j.localId;
+  const write = async (path, f) => {
+    const res = await fetch(DOCS + path, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${j.idToken}` }, body: JSON.stringify({ fields: fields(f) }) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  };
+  await write(`/groups/${code}/members/${uid}`, { uid, name });
+  await Promise.all(picks.map((p) => write(`/groups/${code}/rsvp/${san(p.match)}__${uid}`, { uid, match: p.match, start: p.start, name, status: p.status })));
+  return uid;
+}
