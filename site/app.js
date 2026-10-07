@@ -62,7 +62,6 @@ for (const c of Object.keys(state.seen)) if (!Object.values(state.groups).includ
 if (typeof state.watch !== "object" || !state.watch || Array.isArray(state.watch)) state.watch = {};
 // ---- Groep per team: de code is de enige beveiliging ----
 let others = null; // wedstrijd -> keuzes van groepsleden [{ uid, name, status }]
-let subsMap = new Map(); // wedstrijd -> invallers [{ id, uid, name, start }]
 let memberList = []; // leden van de groep [{ uid, name }]
 let memberCount = 0;
 let myUid = "";
@@ -78,7 +77,7 @@ async function pushMine(m) {
 }
 
 let othersSeq = 0;
-function resetShared() { others = null; subsMap = new Map(); memberList = []; memberCount = 0; state.shareError = false; othersSeq++; }
+function resetShared() { others = null; memberList = []; memberCount = 0; state.shareError = false; othersSeq++; }
 
 // Alleen de aanwezigheidsblokken en de groepsregel verversen, zodat de focus en een openstaande keuze blijven staan.
 function refreshShared() {
@@ -122,12 +121,24 @@ async function addSubFor(id) {
   if (!m || !code) return;
   const name = (prompt("Naam van de invaller") || "").trim().slice(0, 30);
   if (!name) return;
+  // een invaller met deze naam die er al is (van een eerdere wedstrijd) hergebruiken
+  const known = memberList.find((o) => shared.isGuest(o.uid) && (o.name || "").toLowerCase() === name.toLowerCase());
+  const uid = known?.uid || shared.newGuestUid();
   whoOpen.add(m.i);
   try {
-    const s = await shared.addSub({ code, match: m.i, start: m.s, name });
-    subsMap.set(m.i, [...(subsMap.get(m.i) || []), s]);
-    refreshShared();
+    if (!known) { await shared.writeMember(code, name, uid); memberList = [...memberList, { uid, name }]; }
+    await shared.put({ code, match: m.i, start: m.s, name: known?.name || name, status: "yes", uid });
   } catch { toast("Invaller toevoegen is niet gelukt."); }
+  loadOthers();
+}
+
+function removeSubFrom(matchId, uid) {
+  const m = (state.matches || []).find((x) => x.i === matchId), code = groupOf();
+  if (!m || !code) return;
+  const list = others?.get(matchId);
+  if (list) others.set(matchId, list.filter((o) => o.uid !== uid));
+  refreshShared();
+  shared.put({ code, match: m.i, start: m.s, name: "", status: null, uid }).catch(() => { toast("Weghalen is niet gelukt."); loadOthers(); });
 }
 
 async function loadOthers() {
@@ -138,10 +149,9 @@ async function loadOthers() {
   const stale = () => seq !== othersSeq || state.active !== key || groupOf() !== code;
   try {
     myUid = await shared.myUid();
-    const [map, list, subs] = await Promise.all([shared.rsvps(code), shared.members(code), shared.subs(code).catch(() => null)]);
+    const [map, list] = await Promise.all([shared.rsvps(code), shared.members(code)]);
     if (stale()) return;
     others = map;
-    if (subs) subsMap = subs; // regels zonder `subs` (nog niet gepubliceerd): invallers ontbreken, rest werkt
     memberList = list;
     state.shareError = false;
     // Heeft een teamgenoot mij als "spook" verwijderd terwijl ik de app nog gebruik? Dan word ik weer lid.
@@ -149,7 +159,7 @@ async function loadOthers() {
       memberList = [...list, { uid: myUid, name: state.name }];
       shared.writeMember(code, state.name).catch(() => {});
     }
-    memberCount = memberList.length;
+    memberCount = memberList.filter((o) => !shared.isGuest(o.uid)).length;
     // eigen keuzes die in de groep ontbreken of afwijken, gelijktrekken (op de achtergrond)
     const mineRemote = [...map.entries()].flatMap(([match, l]) => l.filter((o) => o.uid === myUid).map((o) => ({ ...o, match })));
     if (!viewing()) reconcile(code, mineRemote).catch(() => {});
@@ -357,16 +367,15 @@ const GLYPH = { yes: "✓", maybe: "?", no: "✕", open: "○" };
 const byName = (a, b) => a.localeCompare(b, "nl");
 // Keuzes bij een wedstrijd: die van teamgenoten uit de groep en je eigen keuze zoals die op dit toestel staat.
 function whoList(m) {
-  const list = currentFor(others?.get(m.i), m).filter((o) => o.uid !== myUid);
+  const list = currentFor(others?.get(m.i), m).filter((o) => o.uid !== myUid).map((o) => (shared.isGuest(o.uid) ? { ...o, name: `${o.name} (invaller)` } : o));
   const mine = attendance.get(m.i);
   if (mine && state.name && !viewing()) list.push({ uid: myUid, name: state.name, status: mine });
-  for (const s of currentFor(subsMap.get(m.i), m)) list.push({ uid: `sub:${s.id}`, name: `${s.name} (invaller)`, status: "yes" });
   return list;
 }
 // Leden die bij deze wedstrijd nog niets hebben gekozen (jijzelf met de naam van dit toestel).
 function openNames(m, list) {
   const done = new Set(list.map((o) => o.uid));
-  return memberList.filter((o) => o.uid && !done.has(o.uid)).map((o) => (o.uid === myUid ? state.name : o.name) || "?").sort(byName);
+  return memberList.filter((o) => o.uid && !shared.isGuest(o.uid) && !done.has(o.uid)).map((o) => (o.uid === myUid ? state.name : o.name) || "?").sort(byName);
 }
 // Per keuze de namen: [["yes", ["Anouk", "Bo"]], ["open", ["Fenna"]]], alleen gevulde groepen.
 function whoGroups(m) {
@@ -378,11 +387,12 @@ function whoGroups(m) {
 const LABEL = { yes: "Ja", maybe: "Misschien", no: "Nee", open: "Nog niet gereageerd" };
 // Ingeklapt: alleen het aantal dat komt ("✓ 8"); tikken toont per keuze de namen.
 const whoOpen = new Set(); // wedstrijden waarvan de namen uitgeklapt zijn; blijft staan bij verversen
-// Invallers bij een wedstrijd: eigen toevoegingen kun je weer weghalen; leden (niet alleen-kijkers) kunnen er een toevoegen.
+// Invallers bij een wedstrijd: een invaller is een lid zonder toestel (uid "gast_…") met een eigen keuze "ja".
+// Leden (niet alleen-kijkers) voegen er een toe; wie bij deze wedstrijd staat haal je met ✕ weg (het lid blijft onder beheer staan).
 function subsHtml(m) {
   if (!shared.enabled || !others || viewing() || !state.name) return "";
-  const mine = currentFor(subsMap.get(m.i), m).filter((s) => s.uid === myUid);
-  const chips = mine.map((s) => `<button class="small sub-del" data-sub-del="${esc(s.id)}" aria-label="Haal invaller ${esc(s.name)} weg">${esc(s.name)} ✕</button>`).join("");
+  const here = currentFor(others.get(m.i), m).filter((o) => shared.isGuest(o.uid));
+  const chips = here.map((o) => `<button class="small sub-del" data-sub-del="${esc(o.uid)}" data-for="${esc(m.i)}" aria-label="Haal invaller ${esc(o.name)} weg">${esc(o.name)} ✕</button>`).join("");
   return `<div class="subs">${chips}<button class="small" data-sub-add="${esc(m.i)}">+ Invaller</button></div>`;
 }
 function whoDetails(m) {
@@ -620,13 +630,7 @@ function renderTeam() {
     const sa = e.target.closest("[data-sub-add]");
     if (sa) { addSubFor(sa.dataset.subAdd); return; }
     const sd = e.target.closest("[data-sub-del]");
-    if (sd) {
-      const code = groupOf(), id = sd.dataset.subDel;
-      for (const [k, l] of subsMap) subsMap.set(k, l.filter((s) => s.id !== id));
-      refreshShared();
-      shared.removeSub(code, id).catch(() => { toast("Weghalen is niet gelukt."); loadOthers(); });
-      return;
-    }
+    if (sd) { removeSubFrom(sd.dataset.for, sd.dataset.subDel); return; }
     if (e.target.closest("#g-open")) { openGroupDialog(); return; }
     if (e.target.closest("#presence-ok")) return ackPresence();
     if (e.target.closest("#att-fill")) { // alle keuzeknoppen open en naar de eerste wedstrijd zonder keuze
@@ -756,7 +760,7 @@ function membersHtml() {
     const me = o.uid === myUid;
     const n = filled(o.uid);
     const count = !others || !upcoming.length ? "" : n ? `${n} van ${upcoming.length} ingevuld` : "nog niets ingevuld";
-    return `<li><span class="m-name">${esc(me ? state.name : o.name || "?")}${me ? ` <span class="muted">(jij)</span>` : ""}</span><span class="muted m-count">${count}</span>${me ? "" : `<span class="m-act"><button class="link" data-restore="${esc(o.uid)}" aria-label="Kopieer herstel-link voor ${esc(o.name || "dit lid")}">Herstel-link</button><button class="link" data-remove="${esc(o.uid)}" aria-label="Verwijder ${esc(o.name || "dit lid")} uit de groep">Verwijder</button></span>`}</li>`;
+    return `<li><span class="m-name">${esc(me ? state.name : o.name || "?")}${me ? ` <span class="muted">(jij)</span>` : shared.isGuest(o.uid) ? ` <span class="muted">(invaller)</span>` : ""}</span><span class="muted m-count">${count}</span>${me ? "" : `<span class="m-act">${shared.isGuest(o.uid) ? "" : `<button class="link" data-restore="${esc(o.uid)}" aria-label="Kopieer herstel-link voor ${esc(o.name || "dit lid")}">Herstel-link</button>`}<button class="link" data-remove="${esc(o.uid)}" aria-label="Verwijder ${esc(o.name || "dit lid")} uit de groep">Verwijder</button></span>`}</li>`;
   }).join("");
   return `<h4 class="m-head">Leden (${memberList.length})</h4>
     <ul class="members">${rows}</ul>

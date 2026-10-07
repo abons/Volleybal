@@ -16,47 +16,36 @@ service cloud.firestore {
       // (de app van een actief lid herstelt zijn lid-document vanzelf).
       match /members/{uid} {
         allow read: if request.auth != null;
+        // Een invaller is een lid met uid "gast_<10 tekens>", door een ander lid aangemaakt.
         allow create, update: if request.auth != null
-          && uid == request.auth.uid
+          && (uid == request.auth.uid || uid.matches('gast_[A-HJ-NP-Z2-9]{10}'))
           && exists(/databases/$(db)/documents/groups/$(code))
           && request.resource.data.keys().hasOnly(['uid', 'name'])
-          && request.resource.data.uid == request.auth.uid
+          && request.resource.data.uid == uid
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30;
         allow delete: if request.auth != null;
       }
 
       // Keuzes: één document per speler per wedstrijd, id = <wedstrijd>__<uid>.
-      // Verwijderen: je eigen keuzes, of die van een speler die geen lid (meer) is.
+      // Verwijderen: je eigen keuzes, die van een invaller (uid gast_…), of die van een speler die geen lid (meer) is.
       match /rsvp/{id} {
         allow read: if request.auth != null;
         allow create, update: if request.auth != null
           && id.size() < 250
-          && id.matches('.*__' + request.auth.uid)
+          && id.matches('.*__' + request.resource.data.uid)
+          && (request.resource.data.uid == request.auth.uid || request.resource.data.uid.matches('gast_[A-HJ-NP-Z2-9]{10}'))
           && exists(/databases/$(db)/documents/groups/$(code))
           && request.resource.data.keys().hasOnly(['uid', 'match', 'start', 'name', 'status'])
-          && request.resource.data.uid == request.auth.uid
           && request.resource.data.status in ['yes', 'maybe', 'no']
           && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30
           && request.resource.data.match is string && request.resource.data.match.size() < 200
           && request.resource.data.start is string && request.resource.data.start.size() < 20;
         allow delete: if request.auth != null
           && (id.matches('.*__' + request.auth.uid)
+            || resource.data.uid.matches('gast_[A-HJ-NP-Z2-9]{10}')
             || !exists(/databases/$(db)/documents/groups/$(code)/members/$(resource.data.uid)));
       }
 
-      // Invallers: een naam bij een wedstrijd, toegevoegd door een lid. Verwijderen mag de toevoeger.
-      match /subs/{id} {
-        allow read: if request.auth != null;
-        allow create: if request.auth != null
-          && id.size() < 250
-          && exists(/databases/$(db)/documents/groups/$(code))
-          && request.resource.data.keys().hasOnly(['uid', 'match', 'start', 'name'])
-          && request.resource.data.uid == request.auth.uid
-          && request.resource.data.name is string && request.resource.data.name.size() > 0 && request.resource.data.name.size() <= 30
-          && request.resource.data.match is string && request.resource.data.match.size() < 200
-          && request.resource.data.start is string && request.resource.data.start.size() < 20;
-        allow delete: if request.auth != null && resource.data.uid == request.auth.uid;
-      }
     }
   }
 }
