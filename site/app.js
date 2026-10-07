@@ -741,6 +741,8 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
     ${viewing() ? "" : `<button id="g-forward"${upcomingMine().length ? "" : " disabled"}>${ico.share} Stuur je keuzes door</button>
     <p class="muted hint">Een link met jouw keuzes voor de komende wedstrijden. Wie hem opent, neemt ze in één keer over, handig als je altijd samen gaat.</p>`}
+    <button id="g-sub">${ico.share} Nodig een invaller uit</button>
+    <p class="muted hint">Een link met de naam van de invaller. Wie hem opent, doet als lid mee en geeft zelf zijn aanwezigheid door. Raakt hij zijn toestel kwijt, geef hem dan zijn herstel-link uit de ledenlijst hieronder.</p>
     ${membersHtml()}
     ${viewing() ? "" : `<h4 class="m-head">Voor jezelf</h4>
     <button id="g-restore">${ico.link} Kopieer herstel-link</button>
@@ -902,6 +904,10 @@ async function onGroupClick(e) {
     const code = groupOf();
     const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}&id=${encodeURIComponent(myUid || await shared.myUid().catch(() => ""))}`;
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : id === "g-link" ? "Link gekopieerd." : "Herstel-link gekopieerd. Bewaar hem in je notities."), () => prompt("Kopieer:", text));
+  } else if (id === "g-sub") {
+    const name = (prompt("Naam van de invaller") || "").trim().slice(0, 30);
+    if (!name) return;
+    shareText(`Doe mee als invaller bij ${teamIndex.get(state.active)?.naam || "ons team"}: open de link, kijk wie er komt en geef je aanwezigheid door.\n${inviteLink()}&naam=${encodeURIComponent(name)}`, "Invaller uitnodigen");
   } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
   else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid");
   else if (id === "p-skip") { pendingProposal = null; dlg.close(); }
