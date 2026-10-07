@@ -288,7 +288,22 @@ function renderSearch() {
       <p id="count" class="muted" role="status"></p>
       <ul class="results" id="results"></ul>
       ${state.active ? `<button id="back">Terug naar mijn team</button>` : ""}
-    </section>`;
+    </section>
+    ${shared.enabled ? `<section class="card">
+      <h2>Heb je een herstel-link?</h2>
+      <p class="muted">Plak de link of de groepscode die je van een teamgenoot kreeg, of die je bewaard had. Bijvoorbeeld na het installeren als app.</p>
+      <div class="row">
+        <input id="link" type="text" placeholder="Link of groepscode" autocomplete="off" autocapitalize="off" enterkeyhint="go" aria-label="Herstel-link of groepscode">
+        <button id="link-go">Gebruik link</button>
+      </div>
+    </section>` : ""}`;
+  const useLink = () => {
+    const params = parseLinkText($("#link").value);
+    if (!params) return toast("Dat lijkt geen link of groepscode van deze app.");
+    applyLink(params);
+  };
+  $("#link-go")?.addEventListener("click", useLink);
+  $("#link")?.addEventListener("keydown", (e) => { if (e.key === "Enter") useLink(); });
   const q = $("#q");
   q.addEventListener("input", () => { state.query = q.value; updateResults(); });
   $("#results").addEventListener("click", (e) => {
@@ -1216,9 +1231,16 @@ async function main() {
   // Link met #groep=CODE&team=<sleutel>[&naam=<naam>][&van=<afzender>&a=<keuzes>]: kies dat team en open het deelnemen-blad
   // met de code (en bij een herstel-link je naam) al ingevuld. Meegestuurde keuzes neem je bij deelnemen over; zit je al in de
   // groep, dan vraagt een blad of je ze overneemt. Zonder team in de link (oudere links) vragen we je eerst een team te kiezen.
-  const params = shared.enabled && location.hash.startsWith("#groep=") ? new URLSearchParams(location.hash.slice(1)) : null;
-  if (params) {
+  if (shared.enabled && location.hash.startsWith("#groep=")) {
+    const params = new URLSearchParams(location.hash.slice(1));
     history.replaceState(null, "", location.pathname + location.search);
+    applyLink(params);
+  }
+}
+
+// Een herstel- of uitnodigingslink verwerken, of hij nu in de adresbalk stond of in het plakveld op het zoekscherm is gezet.
+function applyLink(params) {
+  {
     const code = shared.cleanCode(params.get("groep") || "");
     const team = params.get("team") || "", name = (params.get("naam") || "").trim().slice(0, 30);
     if (shared.validCode(code)) {
@@ -1239,6 +1261,14 @@ async function main() {
       } else offerPendingJoin();
     }
   }
+}
+
+// Tekst uit het plakveld: een hele link, alleen het deel na #, of een kale groepscode.
+function parseLinkText(text) {
+  const t = (text || "").trim();
+  const i = t.indexOf("groep=");
+  if (i >= 0) return new URLSearchParams(t.slice(i).replace(/\s+/g, ""));
+  return shared.validCode(shared.cleanCode(t)) ? new URLSearchParams({ groep: t }) : null;
 }
 
 // Terug in de app: de keuzes van teamgenoten verversen.

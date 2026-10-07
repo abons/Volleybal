@@ -32,6 +32,8 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   maakt zijn lid-document bij het volgende laden vanzelf weer aan. De regels staan leden van de groep toe een ander lid te
   verwijderen en de keuzes van een verdwenen lid op te ruimen; publiceer na een wijziging altijd dezelfde `firestore.rules` in de
   Firebase-console.
+- **Herstel-link plakken**: op het zoekscherm staat *Heb je een herstel-link?*. Plak daar de link (of alleen de groepscode) en je komt in
+  dezelfde flow als wanneer je de link opent. Handig als de link in een andere browser of app-browser opende dan waarin je de app installeerde.
 - **Opslag kwijt?** Onder *beheer* staat *Kopieer herstel-link*: de uitnodigingslink met je naam erbij (`&naam=…`). Bewaar hem in je
   notities. Op een nieuw toestel, of nadat de browser je gegevens heeft gewist, opent hij je team en het deelnemen-blad met je naam
   ingevuld. Neem je deel met een naam die al in de groep staat onder een ander toestel, dan vraagt de app "Ben jij dat?" en neemt bij ja
