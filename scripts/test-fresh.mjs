@@ -97,3 +97,8 @@ test("presenceDiff: onveranderd, verdwenen keuze en nooit genoeg", () => {
   assert.deepEqual(presenceDiff(base, { u1: ["yes", "Jitse"] }).changes, [{ name: "Casper", from: "maybe", to: null }]);
   assert.equal(presenceDiff({ u1: ["yes", "Jitse"] }, {}).dropped, false); // er waren er nooit genoeg
 });
+
+test("presenceDiff: herstel-link (nieuw uid, zelfde naam) is geen wijziging", () => {
+  assert.deepEqual(presenceDiff({ old: ["yes", "Casper"] }, { new: ["yes", "Casper"] }).changes, []);
+  assert.deepEqual(presenceDiff({ old: ["yes", "Casper"] }, { new: ["no", "Casper"] }).changes, [{ name: "Casper", from: "yes", to: "no" }]);
+});

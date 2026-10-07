@@ -669,7 +669,9 @@ function presenceChanges() {
     const cur = othersNow(m), base = seen[m.i];
     if (!base || base.s !== m.s) { seen[m.i] = { s: m.s, v: cur }; dirty = true; continue; }
     // wie niet meer in de groep zit (verwijderd of vertrokken) is geen aanwezigheidswijziging
-    const was = Object.fromEntries(Object.entries(base.v).filter(([uid]) => members.has(uid)));
+    // (behalve een lid dat onder een nieuw uid terug is, zie presenceDiff)
+    const names = new Set(Object.values(cur).map((v) => v[1]));
+    const was = Object.fromEntries(Object.entries(base.v).filter(([uid, v]) => members.has(uid) || (!(uid in cur) && names.has(v[1]))));
     const d = presenceDiff(was, cur, !viewing() && state.name && attendance.get(m.i) === "yes" ? 1 : 0);
     if (d.changes.length) out.push({ m, ...d });
   }

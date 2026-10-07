@@ -53,6 +53,12 @@ export const snapshotOf = (list) => Object.fromEntries((list || []).map((o) => [
 // Geeft { changes: [{ name, from, to }], before, now, dropped } terug; dropped = er waren genoeg spelers en nu niet meer.
 export function presenceDiff(base, cur, mine = 0) {
   const changes = [];
+  // Een lid dat zijn keuzes via een herstel-link overneemt, heeft een nieuw uid maar dezelfde naam: dat is dezelfde persoon.
+  const byName = new Map(Object.entries(cur).map(([uid, v]) => [v[1], uid]));
+  base = Object.fromEntries(Object.entries(base).map(([uid, v]) => {
+    const to = byName.get(v[1]);
+    return [!(uid in cur) && to && !(to in base) ? to : uid, v];
+  }));
   const yes = (s) => Object.values(s).filter((v) => v[0] === "yes").length + mine;
   for (const uid of new Set([...Object.keys(base), ...Object.keys(cur)])) {
     const from = base[uid]?.[0] || null, to = cur[uid]?.[0] || null;
