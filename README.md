@@ -44,11 +44,7 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   het programma staan, worden overgeslagen.
 - Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
   gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
-- **Invallers**: onder de namen bij een wedstrijd staat *+ Invaller* (voor leden, niet voor wie alleen meekijkt). Een invaller is een lid zonder toestel
-  (uid `gast_<10 tekens>`, door een ander lid aangemaakt) met een eigen keuze *ja* voor die wedstrijd; hij staat als "Naam (invaller)" in de lijst
-  en telt mee. Dezelfde naam bij een volgende wedstrijd hergebruikt dezelfde invaller. Met ✕ haal je hem bij een wedstrijd weg; onder *beheer*
-  staat hij in de ledenlijst (met *Verwijder*), telt niet mee in het aantal leden en komt niet onder *nog niet gereageerd*. `firestore.rules`
-  staat alleen voor uids met het voorvoegsel `gast_` toe dat een ander lid ze aanmaakt en hun keuzes schrijft; publiceer de regels opnieuw.
+- **Invallers**: onder de namen bij een wedstrijd staat *+ Invaller* (voor leden, niet voor wie alleen meekijkt). De naam telt mee als *ja* en staat als "Naam (invaller)" in de lijst; wie hem toevoegde kan hem met ✕ weer weghalen. Opslag: `groups/<code>/subs/<wedstrijd>__<id>` (uid, naam, wedstrijd, starttijd); publiceer daarvoor de bijgewerkte `firestore.rules`. Zolang die regels ontbreken, werkt de rest gewoon en ontbreken alleen de invallers.
 - **Verzette wedstrijd**: Nevobo houdt het UID bij een verzette wedstrijd meestal gelijk. Een keuze bewaart daarom ook de starttijd
   waarop hij is gegeven (`start`) en geldt alleen als die gelijk is aan de huidige starttijd van de wedstrijd (exacte vergelijking van de
   UTC-string; ook een verschuiving van alleen het tijdstip telt). Een verouderde keuze van een teamgenoot telt niet mee: die staat bij
