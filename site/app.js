@@ -742,7 +742,7 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     ${viewing() ? "" : `<button id="g-forward"${upcomingMine().length ? "" : " disabled"}>${ico.share} Stuur je keuzes door</button>
     <p class="muted hint">Een link met jouw keuzes voor de komende wedstrijden. Wie hem opent, neemt ze in één keer over, handig als je altijd samen gaat.</p>`}
     ${state.name ? `<button id="g-sub">${ico.share} Voeg een invaller toe</button>
-    <p class="muted hint">Een invaller is een lid zonder eigen toestel (nog): jij vult zijn aanwezigheid in. Daarna geef je hem zijn herstel-link uit de ledenlijst; als hij die opent, neemt hij zijn keuzes over.</p>` : ""}
+    <p class="muted hint">Een invaller is een lid zonder eigen toestel (nog): jij meldt hem aanwezig bij de wedstrijden waar hij bij is. Daarna geef je hem zijn herstel-link uit de ledenlijst; als hij die opent, neemt hij zijn keuzes over.</p>` : ""}
     ${membersHtml()}
     ${viewing() ? "" : `<h4 class="m-head">Voor jezelf</h4>
     <button id="g-restore">${ico.link} Kopieer herstel-link</button>
@@ -773,12 +773,11 @@ function subFormHtml() {
   const rows = upcomingOf(state.matches || []).map((m) => {
     const { isHome, opp } = sideOf(m, team);
     const d = parseDt(m.s);
-    return `<label class="field sub-row">${esc(dayLabel(d))} ${fTime.format(d)} · ${esc(opp ? `${isHome ? "thuis" : "uit"} tegen ${opp}` : m.t)}
-      <select data-sub-m="${esc(m.i)}"><option value="">Niet invullen</option>${STATUS.map(([k, name]) => `<option value="${k}">${name}</option>`).join("")}</select></label>`;
+    return `<label class="sub-row"><input type="checkbox" data-sub-m="${esc(m.i)}"><span>${esc(dayLabel(d))} ${fTime.format(d)} · ${esc(opp ? `${isHome ? "thuis" : "uit"} tegen ${opp}` : m.t)}</span></label>`;
   }).join("");
   return `<div class="sheet-head"><h3 id="group-title">Invaller toevoegen</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
     <label class="field">Naam van de invaller<input id="g-name" type="text" maxlength="30" autocomplete="off" placeholder="Bijvoorbeeld Jitse"></label>
-    ${rows || `<p class="muted">Er zijn geen komende wedstrijden.</p>`}
+    ${rows ? `<p class="muted">Vink de wedstrijden aan waar hij bij is.</p>${rows}` : `<p class="muted">Er zijn geen komende wedstrijden.</p>`}
     <button id="g-sub-save">Toevoegen</button><button class="link" id="g-sub-back">Terug</button>
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
@@ -926,7 +925,7 @@ async function onGroupClick(e) {
     if (!name) throw new Error("name");
     if (memberList.some((o) => o.name && sameName(o.name, name))) throw new Error("dup");
     const byId = new Map((state.matches || []).map((m) => [m.i, m]));
-    const picks = [...dlg.querySelectorAll("[data-sub-m]")].filter((s) => s.value).map((s) => ({ match: s.dataset.subM, start: byId.get(s.dataset.subM)?.s || "", status: s.value }));
+    const picks = [...dlg.querySelectorAll("[data-sub-m]")].filter((s) => s.checked).map((s) => ({ match: s.dataset.subM, start: byId.get(s.dataset.subM)?.s || "", status: "yes" }));
     const uid = await shared.addProxyMember(groupOf(), name, picks);
     memberList = [...memberList, { uid, name }];
     memberCount = memberList.length;

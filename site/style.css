@@ -294,4 +294,5 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 .who-d summary > .who-low, .who-d summary > .who-low > span:first-child { color: var(--err); }
 .who-d summary > .who-edge, .who-d summary > .who-edge > span:first-child { color: var(--warn); }
 
-.sub-row select { font: inherit; padding: 10px 12px; min-height: 44px; border-radius: 10px; border: 1px solid var(--line-strong); background: var(--card); color: var(--text); width: 100%; }
+.sub-row { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px 0; font-size: .95rem; color: var(--text); }
+.sub-row input { width: 22px; height: 22px; flex: none; }
