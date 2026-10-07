@@ -48,7 +48,7 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   wedstrijden aan waar hij bij is (alleen aanwezig, dus Ja). De app maakt dan een nieuwe anonieme Firebase-gebruiker aan (`shared.addProxyMember`) die zelf zijn lid-document en keuzes
   schrijft, precies als zijn eigen toestel zou doen; daarom is er niets in `firestore.rules` voor nodig. Daarna staat hij in de ledenlijst met *Herstel-link*:
   geef hem die, dan neemt hij als hij hem opent zijn lid en keuzes over (`claimGhost`). Het token van die anonieme gebruiker wordt niet bewaard, dus alleen de
-  herstel-link of *Verwijder* kan er nog iets mee; zijn keuzes pas je later niet meer aan zonder dat hij ze overneemt.
+  herstel-link of *Verwijder* kan er nog iets mee; zijn keuzes kun je daarna niet meer wijzigen; hij kan ze pas aanpassen nadat hij ze via de herstel-link heeft overgenomen.
 - **Verzette wedstrijd**: Nevobo houdt het UID bij een verzette wedstrijd meestal gelijk. Een keuze bewaart daarom ook de starttijd
   waarop hij is gegeven (`start`) en geldt alleen als die gelijk is aan de huidige starttijd van de wedstrijd (exacte vergelijking van de
   UTC-string; ook een verschuiving van alleen het tijdstip telt). Een verouderde keuze van een teamgenoot telt niet mee: die staat bij

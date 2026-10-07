@@ -525,7 +525,7 @@ function renderTeam() {
     if (join) join.textContent = e.target.value.trim() ? "Deelnemen" : "Alleen kijken";
   });
   $("#group-dlg").addEventListener("keydown", (e) => { // Enter verstuurt het blad
-    if (e.key !== "Enter" || !e.target.matches("input")) return;
+    if (e.key !== "Enter" || !e.target.matches("input:not([type=checkbox])")) return;
     e.preventDefault();
     const dlg = e.currentTarget;
     const go = $("#g-sub-save") ? "#g-sub-save" : e.target.id === "g-code" || $("#g-code")?.value.trim() ? "#g-join" : $("#g-rename") ? "#g-rename" : "#g-create";
@@ -741,8 +741,8 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
     ${viewing() ? "" : `<button id="g-forward"${upcomingMine().length ? "" : " disabled"}>${ico.share} Stuur je keuzes door</button>
     <p class="muted hint">Een link met jouw keuzes voor de komende wedstrijden. Wie hem opent, neemt ze in één keer over, handig als je altijd samen gaat.</p>`}
-    ${state.name ? `<button id="g-sub">${ico.share} Voeg een teamgenoot toe</button>
-    <p class="muted hint">Voor wie (nog) geen eigen toestel heeft: jij meldt hem aanwezig bij de wedstrijden waar hij bij is. Daarna geef je hem zijn herstel-link uit de ledenlijst; als hij die opent, neemt hij zijn keuzes over.</p>` : ""}
+    ${state.name ? `<button id="g-sub">Voeg een teamgenoot toe</button>
+    <p class="muted hint">Voor wie (nog) geen eigen toestel heeft: jij meldt die teamgenoot aanwezig bij de wedstrijden waar die bij is. Daarna geef je de herstel-link uit de ledenlijst; wie die opent, neemt de keuzes over.</p>` : ""}
     ${membersHtml()}
     ${viewing() ? "" : `<h4 class="m-head">Voor jezelf</h4>
     <button id="g-restore">${ico.link} Kopieer herstel-link</button>
@@ -777,7 +777,7 @@ function subFormHtml() {
   }).join("");
   return `<div class="sheet-head"><h3 id="group-title">Teamgenoot toevoegen</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
     <label class="field">Naam<input id="g-name" type="text" maxlength="30" autocomplete="off" placeholder="Bijvoorbeeld Jitse"></label>
-    ${rows ? `<p class="muted">Vink de wedstrijden aan waar hij bij is.</p>${rows}` : `<p class="muted">Er zijn geen komende wedstrijden.</p>`}
+    ${rows ? `<p class="muted">Vink de wedstrijden aan waar die teamgenoot bij is.</p>${rows}` : `<p class="muted">Er zijn geen komende wedstrijden geladen. Je kunt de teamgenoot toch toevoegen.</p>`}
     <button id="g-sub-save">Toevoegen</button><button class="link" id="g-sub-back">Terug</button>
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
@@ -920,21 +920,23 @@ async function onGroupClick(e) {
     const text = id === "g-copy" ? showCode(code) : id === "g-link" ? inviteLink() : `${inviteLink()}&naam=${encodeURIComponent(state.name)}&id=${encodeURIComponent(myUid || await shared.myUid().catch(() => ""))}`;
     navigator.clipboard.writeText(text).then(() => toast(id === "g-copy" ? "Code gekopieerd." : id === "g-link" ? "Link gekopieerd." : "Herstel-link gekopieerd. Bewaar hem in je notities."), () => prompt("Kopieer:", text));
   } else if (id === "g-sub") { dlg.innerHTML = subFormHtml(); $("#g-name")?.focus(); }
-  else if (id === "g-sub-back") dlg.innerHTML = groupDialogHtml();
+  else if (id === "g-sub-back") { dlg.innerHTML = groupDialogHtml(); $("#g-sub")?.focus(); }
   else if (id === "g-sub-save") groupAction(btn, async (name) => {
     if (!name) throw new Error("name");
-    if (memberList.some((o) => o.name && sameName(o.name, name))) throw new Error("dup");
+    const current = await shared.members(groupOf()); // vers ophalen: memberList kan verouderd zijn
+    if (current.some((o) => o.name && sameName(o.name, name))) throw new Error("dup");
     const byId = new Map((state.matches || []).map((m) => [m.i, m]));
     const picks = [...dlg.querySelectorAll("[data-sub-m]")].filter((s) => s.checked).map((s) => ({ match: s.dataset.subM, start: byId.get(s.dataset.subM)?.s || "", status: "yes" }));
     const uid = await shared.addProxyMember(groupOf(), name, picks);
-    memberList = [...memberList, { uid, name }];
+    memberList = [...current, { uid, name }];
     memberCount = memberList.length;
-    toast(`${name} is toegevoegd. Geef ${name} zijn herstel-link uit de ledenlijst.`);
+    toast(`${name} is toegevoegd. Geef ${name} de herstel-link uit de ledenlijst.`);
     dlg.innerHTML = groupDialogHtml();
+    $("#g-sub")?.focus();
     loadOthers();
   });
   else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
-  else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid");
+  else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid", "Je keuzes zijn gekopieerd. Plak ze in je teamapp.");
   else if (id === "p-skip") { pendingProposal = null; dlg.close(); }
   else if (id === "p-accept") groupAction(btn, async () => {
     const n = await applyProposal();

@@ -174,7 +174,12 @@ export async function addProxyMember(code, name, picks) {
     const res = await fetch(DOCS + path, { method: "PATCH", headers: { "Content-Type": "application/json", Authorization: `Bearer ${j.idToken}` }, body: JSON.stringify({ fields: fields(f) }) });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
   };
-  await write(`/groups/${code}/members/${uid}`, { uid, name });
-  await Promise.all(picks.map((p) => write(`/groups/${code}/rsvp/${san(p.match)}__${uid}`, { uid, match: p.match, start: p.start, name, status: p.status })));
+  try {
+    await write(`/groups/${code}/members/${uid}`, { uid, name });
+    await Promise.all(picks.map((p) => write(`/groups/${code}/rsvp/${san(p.match)}__${uid}`, { uid, match: p.match, start: p.start, name, status: p.status })));
+  } catch (e) {
+    await removeMember(code, uid).catch(() => {}); // geen half lid achterlaten, zodat opnieuw proberen geen dubbele naam geeft
+    throw e;
+  }
   return uid;
 }
