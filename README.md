@@ -44,11 +44,11 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   het programma staan, worden overgeslagen.
 - Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
   gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
-- **Invaller**: een invaller is gewoon een lid. Onder *beheer* staat *Voeg een invaller toe* (voor leden met een naam): je typt zijn naam en vinkt de komende
+- **Teamgenoot toevoegen** (bijvoorbeeld een invaller): hij is gewoon een lid. Onder *beheer* staat *Voeg een teamgenoot toe* (voor leden met een naam): je typt zijn naam en vinkt de komende
   wedstrijden aan waar hij bij is (alleen aanwezig, dus Ja). De app maakt dan een nieuwe anonieme Firebase-gebruiker aan (`shared.addProxyMember`) die zelf zijn lid-document en keuzes
   schrijft, precies als zijn eigen toestel zou doen; daarom is er niets in `firestore.rules` voor nodig. Daarna staat hij in de ledenlijst met *Herstel-link*:
   geef hem die, dan neemt hij als hij hem opent zijn lid en keuzes over (`claimGhost`). Het token van die anonieme gebruiker wordt niet bewaard, dus alleen de
-  herstel-link of *Verwijder* kan er nog iets mee; de keuzes van een invaller pas je later niet meer aan zonder dat hij ze overneemt.
+  herstel-link of *Verwijder* kan er nog iets mee; zijn keuzes pas je later niet meer aan zonder dat hij ze overneemt.
 - **Verzette wedstrijd**: Nevobo houdt het UID bij een verzette wedstrijd meestal gelijk. Een keuze bewaart daarom ook de starttijd
   waarop hij is gegeven (`start`) en geldt alleen als die gelijk is aan de huidige starttijd van de wedstrijd (exacte vergelijking van de
   UTC-string; ook een verschuiving van alleen het tijdstip telt). Een verouderde keuze van een teamgenoot telt niet mee: die staat bij

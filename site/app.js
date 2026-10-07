@@ -741,8 +741,8 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <p class="muted hint">Een tekstoverzicht van de komende wedstrijden voor in je teamapp, met wie nog niet heeft gereageerd.</p>
     ${viewing() ? "" : `<button id="g-forward"${upcomingMine().length ? "" : " disabled"}>${ico.share} Stuur je keuzes door</button>
     <p class="muted hint">Een link met jouw keuzes voor de komende wedstrijden. Wie hem opent, neemt ze in één keer over, handig als je altijd samen gaat.</p>`}
-    ${state.name ? `<button id="g-sub">${ico.share} Voeg een invaller toe</button>
-    <p class="muted hint">Een invaller is een lid zonder eigen toestel (nog): jij meldt hem aanwezig bij de wedstrijden waar hij bij is. Daarna geef je hem zijn herstel-link uit de ledenlijst; als hij die opent, neemt hij zijn keuzes over.</p>` : ""}
+    ${state.name ? `<button id="g-sub">${ico.share} Voeg een teamgenoot toe</button>
+    <p class="muted hint">Voor wie (nog) geen eigen toestel heeft: jij meldt hem aanwezig bij de wedstrijden waar hij bij is. Daarna geef je hem zijn herstel-link uit de ledenlijst; als hij die opent, neemt hij zijn keuzes over.</p>` : ""}
     ${membersHtml()}
     ${viewing() ? "" : `<h4 class="m-head">Voor jezelf</h4>
     <button id="g-restore">${ico.link} Kopieer herstel-link</button>
@@ -767,7 +767,7 @@ function groupDialogHtml(prefill = "", prefillName = "") {
     <p id="g-err" class="notice" role="alert" hidden></p>`;
 }
 
-// Invaller toevoegen: naam en per komende wedstrijd Ja / Misschien / Nee (of niets); komt in dezelfde blad.
+// Teamgenoot toevoegen: naam en per komende wedstrijd een vinkje (alleen aanwezig); komt in hetzelfde blad.
 function subFormHtml() {
   const team = teamIndex.get(state.active);
   const rows = upcomingOf(state.matches || []).map((m) => {
@@ -775,8 +775,8 @@ function subFormHtml() {
     const d = parseDt(m.s);
     return `<label class="sub-row"><input type="checkbox" data-sub-m="${esc(m.i)}"><span>${esc(dayLabel(d))} ${fTime.format(d)} · ${esc(opp ? `${isHome ? "thuis" : "uit"} tegen ${opp}` : m.t)}</span></label>`;
   }).join("");
-  return `<div class="sheet-head"><h3 id="group-title">Invaller toevoegen</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
-    <label class="field">Naam van de invaller<input id="g-name" type="text" maxlength="30" autocomplete="off" placeholder="Bijvoorbeeld Jitse"></label>
+  return `<div class="sheet-head"><h3 id="group-title">Teamgenoot toevoegen</h3><button class="star" id="g-close" aria-label="Sluiten">${ico.close}</button></div>
+    <label class="field">Naam<input id="g-name" type="text" maxlength="30" autocomplete="off" placeholder="Bijvoorbeeld Jitse"></label>
     ${rows ? `<p class="muted">Vink de wedstrijden aan waar hij bij is.</p>${rows}` : `<p class="muted">Er zijn geen komende wedstrijden.</p>`}
     <button id="g-sub-save">Toevoegen</button><button class="link" id="g-sub-back">Terug</button>
     <p id="g-err" class="notice" role="alert" hidden></p>`;
@@ -868,7 +868,7 @@ async function groupAction(btn, fn) {
   btn.disabled = true;
   try { await fn(name); }
   catch (e) {
-    err.textContent = e.message === "notfound" ? "Die code bestaat niet. Controleer hem en probeer opnieuw." : e.message === "name" ? (document.querySelector("#g-sub-save") ? "Vul de naam van de invaller in." : "Vul eerst je naam in.") : e.message === "code" ? "Een code heeft 10 tekens (letters en cijfers)." : e.message === "dup" ? "Er staat al een lid met die naam in de groep." : "Het is niet gelukt. Controleer je verbinding en probeer het opnieuw.";
+    err.textContent = e.message === "notfound" ? "Die code bestaat niet. Controleer hem en probeer opnieuw." : e.message === "name" ? (document.querySelector("#g-sub-save") ? "Vul de naam in." : "Vul eerst je naam in.") : e.message === "code" ? "Een code heeft 10 tekens (letters en cijfers)." : e.message === "dup" ? "Er staat al een lid met die naam in de groep." : "Het is niet gelukt. Controleer je verbinding en probeer het opnieuw.";
     if (err) err.hidden = false; else toast("Het is niet gelukt. Probeer het opnieuw.");
   } finally { btn.disabled = false; }
 }

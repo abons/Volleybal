@@ -164,9 +164,9 @@ export async function rsvps(code) {
   return out;
 }
 
-// Invaller toevoegen: een nieuwe anonieme gebruiker (eigen uid en token, alleen in het geheugen) schrijft zijn eigen lid-document en
+// Teamgenoot toevoegen: een nieuwe anonieme gebruiker (eigen uid en token, alleen in het geheugen) schrijft zijn eigen lid-document en
 // keuzes, precies zoals zijn eigen toestel dat zou doen; firestore.rules hoeft dus niet te veranderen. Met zijn herstel-link
-// (`&naam=…&id=<uid>`) neemt de invaller later dat lid over. picks: [{ match, start, status }]. Geeft het uid terug.
+// (`&naam=…&id=<uid>`) neemt die teamgenoot later dat lid over. picks: [{ match, start, status }]. Geeft het uid terug.
 export async function addProxyMember(code, name, picks) {
   const j = await post(`https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${FIREBASE.apiKey}`, { returnSecureToken: true });
   const uid = j.localId;
