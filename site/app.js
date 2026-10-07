@@ -45,12 +45,17 @@ let manifestStart = "";
 function syncManifest() {
   const link = document.querySelector('link[rel="manifest"]');
   const code = shared.enabled && state.groups?.[state.active];
-  if (!link || !code || !location.protocol.startsWith("http")) return;
+  if (!link || !location.protocol.startsWith("http")) return;
+  if (!code) { // groep verlaten of team zonder groep: terug naar de vaste manifest
+    if (manifestStart) { URL.revokeObjectURL(link.href); link.href = "manifest.webmanifest"; manifestStart = ""; }
+    return;
+  }
   const base = location.origin + location.pathname.replace(/[^/]*$/, "");
   let start = `${base}#groep=${code}&team=${encodeURIComponent(state.active)}`;
   if (!state.watch?.[state.active] && state.name) start += `&naam=${encodeURIComponent(state.name)}`;
   if (myUid && !state.watch?.[state.active]) start += `&id=${encodeURIComponent(myUid)}`;
   if (start === manifestStart) return;
+  if (manifestStart) URL.revokeObjectURL(link.href);
   manifestStart = start;
   const icon = (f, extra = {}) => ({ src: base + f, sizes: "512x512", type: "image/png", ...extra });
   const manifest = {
@@ -1286,7 +1291,7 @@ function applyLink(params) {
         }
         else if (state.active === team && !state.searching) offerPendingJoin();
         else selectTeam(team);
-      } else if (!state.active) {
+      } else if (!state.active || state.searching) { // op het zoekscherm wacht de code tot je een team kiest
         toast("Kies eerst je team; daarna kun je deelnemen met de code.");
       } else offerPendingJoin();
     }
@@ -1297,7 +1302,7 @@ function applyLink(params) {
 function parseLinkText(text) {
   const t = (text || "").trim();
   const i = t.indexOf("groep=");
-  if (i >= 0) return new URLSearchParams(t.slice(i).replace(/\s+/g, ""));
+  if (i >= 0) return new URLSearchParams(t.slice(i).split(/\s/)[0]); // tekst na de link (bijvoorbeeld "Groet, Piet") hoort er niet bij
   return shared.validCode(shared.cleanCode(t)) ? new URLSearchParams({ groep: t }) : null;
 }
 
