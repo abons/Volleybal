@@ -293,7 +293,3 @@ dialog.sheet .hint, #install .hint { margin: 6px 0 0; font-size: .85rem; }
 /* Aantal "ja" onder de 6: rood; precies 6: oranje */
 .who-d summary > .who-low, .who-d summary > .who-low > span:first-child { color: var(--err); }
 .who-d summary > .who-edge, .who-d summary > .who-edge > span:first-child { color: var(--warn); }
-
-/* Invallers */
-.subs { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 4px; }
-.subs button { min-height: 44px; }

@@ -44,7 +44,6 @@ Zonder instellingen werkt alles lokaal. Met Firebase kan een team zijn aanwezigh
   het programma staan, worden overgeslagen.
 - Onder *beheer* staat *Deel wie er komt*: een tekstoverzicht van de komende wedstrijden (wie komt, wie niet, wie nog niet heeft
   gereageerd) met de uitnodigingslink, via het deelmenu van je toestel (bijvoorbeeld naar WhatsApp) of anders naar het klembord.
-- **Invallers**: onder de namen bij een wedstrijd staat *+ Invaller* (voor leden, niet voor wie alleen meekijkt). De naam telt mee als *ja* en staat als "Naam (invaller)" in de lijst; wie hem toevoegde kan hem met ✕ weer weghalen. Opslag: `groups/<code>/subs/<wedstrijd>__<id>` (uid, naam, wedstrijd, starttijd); publiceer daarvoor de bijgewerkte `firestore.rules`. Zolang die regels ontbreken, werkt de rest gewoon en ontbreken alleen de invallers.
 - **Verzette wedstrijd**: Nevobo houdt het UID bij een verzette wedstrijd meestal gelijk. Een keuze bewaart daarom ook de starttijd
   waarop hij is gegeven (`start`) en geldt alleen als die gelijk is aan de huidige starttijd van de wedstrijd (exacte vergelijking van de
   UTC-string; ook een verschuiving van alleen het tijdstip telt). Een verouderde keuze van een teamgenoot telt niet mee: die staat bij

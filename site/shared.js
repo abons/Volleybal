@@ -98,8 +98,8 @@ export async function joinGroup(code, name) {
 }
 
 // Query binnen een groep: Map-achtige lijst van velden.
-async function query(code, where, collectionId = "rsvp") {
-  const rows = await call(`/groups/${code}:runQuery`, { method: "POST", body: JSON.stringify({ structuredQuery: { from: [{ collectionId }], where, limit: 1000 } }) });
+async function query(code, where) {
+  const rows = await call(`/groups/${code}:runQuery`, { method: "POST", body: JSON.stringify({ structuredQuery: { from: [{ collectionId: "rsvp" }], where, limit: 1000 } }) });
   return rows.filter((r) => r.document).map((r) => ({ id: r.document.name.split("/").pop(), ...plain(r.document) }));
 }
 const gone = (e) => { if (!/404/.test(e.message)) throw e; };
@@ -163,30 +163,3 @@ export async function rsvps(code) {
   }
   return out;
 }
-
-// ---- Invallers: een naam bij een wedstrijd, toegevoegd door een lid (geen eigen toestel of keuze) ----
-// Document `subs/<wedstrijd>__<willekeurig>`; de toevoeger (uid) mag het weer verwijderen.
-const sinceDay = () => {
-  const d = new Date(Date.now() - 864e5);
-  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, "0")}${String(d.getUTCDate()).padStart(2, "0")}`;
-};
-
-// Per wedstrijd: Map(match -> [{ id, uid, name, start }]).
-export async function subs(code) {
-  const out = new Map();
-  for (const r of await query(code, { fieldFilter: { field: { fieldPath: "start" }, op: "GREATER_THAN_OR_EQUAL", value: str(sinceDay()) } }, "subs")) {
-    if (!r.match) continue;
-    if (!out.has(r.match)) out.set(r.match, []);
-    out.get(r.match).push({ id: r.id, uid: r.uid, name: r.name || "?", start: r.start });
-  }
-  return out;
-}
-
-export async function addSub({ code, match, start, name }) {
-  const uid = await myUid();
-  const id = `${san(match)}__${newCode()}`;
-  await call(`/groups/${code}/subs/${id}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid, match, start, name }) }) });
-  return { id, uid, name, start };
-}
-
-export const removeSub = (code, id) => call(`/groups/${code}/subs/${id}`, { method: "DELETE" }).catch(gone);

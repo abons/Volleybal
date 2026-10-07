@@ -62,7 +62,6 @@ for (const c of Object.keys(state.seen)) if (!Object.values(state.groups).includ
 if (typeof state.watch !== "object" || !state.watch || Array.isArray(state.watch)) state.watch = {};
 // ---- Groep per team: de code is de enige beveiliging ----
 let others = null; // wedstrijd -> keuzes van groepsleden [{ uid, name, status }]
-let subsMap = new Map(); // wedstrijd -> invallers [{ id, uid, name, start }]
 let memberList = []; // leden van de groep [{ uid, name }]
 let memberCount = 0;
 let myUid = "";
@@ -78,7 +77,7 @@ async function pushMine(m) {
 }
 
 let othersSeq = 0;
-function resetShared() { others = null; subsMap = new Map(); memberList = []; memberCount = 0; state.shareError = false; othersSeq++; }
+function resetShared() { others = null; memberList = []; memberCount = 0; state.shareError = false; othersSeq++; }
 
 // Alleen de aanwezigheidsblokken en de groepsregel verversen, zodat de focus en een openstaande keuze blijven staan.
 function refreshShared() {
@@ -117,19 +116,6 @@ async function reconcile(code, list) {
   await Promise.all(jobs);
 }
 
-async function addSubFor(id) {
-  const m = (state.matches || []).find((x) => x.i === id), code = groupOf();
-  if (!m || !code) return;
-  const name = (prompt("Naam van de invaller") || "").trim().slice(0, 30);
-  if (!name) return;
-  whoOpen.add(m.i);
-  try {
-    const s = await shared.addSub({ code, match: m.i, start: m.s, name });
-    subsMap.set(m.i, [...(subsMap.get(m.i) || []), s]);
-    refreshShared();
-  } catch { toast("Invaller toevoegen is niet gelukt."); }
-}
-
 async function loadOthers() {
   const code = groupOf();
   const key = state.active;
@@ -138,10 +124,9 @@ async function loadOthers() {
   const stale = () => seq !== othersSeq || state.active !== key || groupOf() !== code;
   try {
     myUid = await shared.myUid();
-    const [map, list, subs] = await Promise.all([shared.rsvps(code), shared.members(code), shared.subs(code).catch(() => null)]);
+    const [map, list] = await Promise.all([shared.rsvps(code), shared.members(code)]);
     if (stale()) return;
     others = map;
-    if (subs) subsMap = subs; // regels zonder `subs` (nog niet gepubliceerd): invallers ontbreken, rest werkt
     memberList = list;
     state.shareError = false;
     // Heeft een teamgenoot mij als "spook" verwijderd terwijl ik de app nog gebruik? Dan word ik weer lid.
@@ -360,7 +345,6 @@ function whoList(m) {
   const list = currentFor(others?.get(m.i), m).filter((o) => o.uid !== myUid);
   const mine = attendance.get(m.i);
   if (mine && state.name && !viewing()) list.push({ uid: myUid, name: state.name, status: mine });
-  for (const s of currentFor(subsMap.get(m.i), m)) list.push({ uid: `sub:${s.id}`, name: `${s.name} (invaller)`, status: "yes" });
   return list;
 }
 // Leden die bij deze wedstrijd nog niets hebben gekozen (jijzelf met de naam van dit toestel).
@@ -378,22 +362,14 @@ function whoGroups(m) {
 const LABEL = { yes: "Ja", maybe: "Misschien", no: "Nee", open: "Nog niet gereageerd" };
 // Ingeklapt: alleen het aantal dat komt ("✓ 8"); tikken toont per keuze de namen.
 const whoOpen = new Set(); // wedstrijden waarvan de namen uitgeklapt zijn; blijft staan bij verversen
-// Invallers bij een wedstrijd: eigen toevoegingen kun je weer weghalen; leden (niet alleen-kijkers) kunnen er een toevoegen.
-function subsHtml(m) {
-  if (!shared.enabled || !others || viewing() || !state.name) return "";
-  const mine = currentFor(subsMap.get(m.i), m).filter((s) => s.uid === myUid);
-  const chips = mine.map((s) => `<button class="small sub-del" data-sub-del="${esc(s.id)}" aria-label="Haal invaller ${esc(s.name)} weg">${esc(s.name)} ✕</button>`).join("");
-  return `<div class="subs">${chips}<button class="small" data-sub-add="${esc(m.i)}">+ Invaller</button></div>`;
-}
 function whoDetails(m) {
-  const actions = subsHtml(m);
   const full = whoHtml(m);
-  if (!full && !actions) return "";
+  if (!full) return "";
   const yes = whoGroups(m).find(([k]) => k === "yes")?.[1].length || 0;
   const level = yes < ENOUGH ? " who-low" : yes === ENOUGH ? " who-edge" : "";
   const hint = yes < ENOUGH ? `<span class="sr-only"> (te weinig, minimaal ${ENOUGH})</span>` : yes === ENOUGH ? `<span class="sr-only"> (precies genoeg)</span>` : "";
   const counts = `<span class="who-yes${level}"><span aria-hidden="true">${GLYPH.yes}</span><span class="sr-only">${LABEL.yes}: </span>${yes}${hint}</span>`;
-  return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="${yes} ${yes === 1 ? "komt" : "komen"}. Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div>${actions}</details>`;
+  return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="${yes} ${yes === 1 ? "komt" : "komen"}. Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
 }
 function whoHtml(m) {
   if (!shared.enabled || !others) return "";
@@ -615,16 +591,6 @@ function renderTeam() {
       redraw(am, entering ? `[data-att="${a.dataset.att}"]` : ".att-now");
       refreshFill();
       pushMine(am).then(loadOthers, () => toast("Delen met je team is niet gelukt. Je keuze staat wel op dit toestel."));
-      return;
-    }
-    const sa = e.target.closest("[data-sub-add]");
-    if (sa) { addSubFor(sa.dataset.subAdd); return; }
-    const sd = e.target.closest("[data-sub-del]");
-    if (sd) {
-      const code = groupOf(), id = sd.dataset.subDel;
-      for (const [k, l] of subsMap) subsMap.set(k, l.filter((s) => s.id !== id));
-      refreshShared();
-      shared.removeSub(code, id).catch(() => { toast("Weghalen is niet gelukt."); loadOthers(); });
       return;
     }
     if (e.target.closest("#g-open")) { openGroupDialog(); return; }
