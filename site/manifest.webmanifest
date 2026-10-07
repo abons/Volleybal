@@ -3,6 +3,7 @@
   "short_name": "Volleybal",
   "description": "Je Nevobo-team als favoriet, met wedstrijden in je agenda.",
   "lang": "nl",
+  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

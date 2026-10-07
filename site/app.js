@@ -34,6 +34,31 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups, watch: state.watch, seen: state.seen })); } catch { /* privémodus */ }
+  syncManifest();
+}
+
+// EXPERIMENT: een geïnstalleerde app heeft soms een eigen opslag (iPhone altijd): dan start hij zonder groep. Daarom krijgt de
+// manifest als start_url je herstel-link mee zodra je in een groep zit; de app opent dan op het deelnemen-blad met je naam al
+// ingevuld. `id` blijft de oude start_url, zodat bestaande installaties dezelfde app blijven. Werkt alleen als de browser een
+// manifest uit een blob-URL accepteert bij het installeren.
+let manifestStart = "";
+function syncManifest() {
+  const link = document.querySelector('link[rel="manifest"]');
+  const code = shared.enabled && state.groups?.[state.active];
+  if (!link || !code || !location.protocol.startsWith("http")) return;
+  const base = location.origin + location.pathname.replace(/[^/]*$/, "");
+  let start = `${base}#groep=${code}&team=${encodeURIComponent(state.active)}`;
+  if (!state.watch?.[state.active] && state.name) start += `&naam=${encodeURIComponent(state.name)}`;
+  if (myUid && !state.watch?.[state.active]) start += `&id=${encodeURIComponent(myUid)}`;
+  if (start === manifestStart) return;
+  manifestStart = start;
+  const icon = (f, extra = {}) => ({ src: base + f, sizes: "512x512", type: "image/png", ...extra });
+  const manifest = {
+    id: base, name: "Volleybal", short_name: "Volleybal", lang: "nl", start_url: start, scope: base, display: "standalone",
+    background_color: "#0e1424", theme_color: "#1d4ed8",
+    icons: [{ ...icon("icon-192.png"), sizes: "192x192" }, icon("icon-512.png"), icon("icon-512.png", { purpose: "maskable" })],
+  };
+  link.href = URL.createObjectURL(new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" }));
 }
 const state = { favs: [], active: null, att: {}, name: "", groups: {}, watch: {}, seen: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
@@ -124,6 +149,7 @@ async function loadOthers() {
   const stale = () => seq !== othersSeq || state.active !== key || groupOf() !== code;
   try {
     myUid = await shared.myUid();
+    syncManifest();
     const [map, list] = await Promise.all([shared.rsvps(code), shared.members(code)]);
     if (stale()) return;
     others = map;
@@ -1253,7 +1279,11 @@ function applyLink(params) {
           pendingCode = "";
           if (state.active !== team || state.searching) selectTeam(team);
           matchesLoaded.then(offerProposal);
-        } else if (state.groups[team]) { pendingCode = ""; pendingProposal = null; toast("Je zit al in de groep van dit team."); }
+        } else if (state.groups[team]) { // al lid: de start_url van de geïnstalleerde app is zelf deze link, dus alleen melden bij een andere groep
+          pendingCode = ""; pendingProposal = null;
+          if (state.groups[team] !== code) toast("Je zit al in de groep van dit team.");
+          else if (state.active !== team || state.searching) selectTeam(team);
+        }
         else if (state.active === team && !state.searching) offerPendingJoin();
         else selectTeam(team);
       } else if (!state.active) {
@@ -1301,6 +1331,7 @@ function showInstall() {
 addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installEvent = e; showInstall(); });
 addEventListener("appinstalled", () => { installBox.hidden = true; toast("Geïnstalleerd"); });
 showInstall();
+syncManifest();
 persistStorage();
 
 // Nieuwe versie van de app automatisch oppakken: zodra een nieuwe service worker het overneemt, laden we de pagina één keer opnieuw.
