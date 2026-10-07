@@ -367,9 +367,9 @@ function whoDetails(m) {
   if (!full) return "";
   const yes = whoGroups(m).find(([k]) => k === "yes")?.[1].length || 0;
   const level = yes < ENOUGH ? " who-low" : yes === ENOUGH ? " who-edge" : "";
-  const hint = yes < ENOUGH ? `<span class="sr-only"> (te weinig, minimaal ${ENOUGH})</span>` : yes === ENOUGH ? `<span class="sr-only"> (precies genoeg)</span>` : "";
-  const counts = `<span class="who-yes${level}"><span aria-hidden="true">${GLYPH.yes}</span><span class="sr-only">${LABEL.yes}: </span>${yes}${hint}</span>`;
-  return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="${yes} ${yes === 1 ? "komt" : "komen"}. Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
+  const hint = yes < ENOUGH ? `. Te weinig, minimaal ${ENOUGH}` : yes === ENOUGH ? ". Precies genoeg" : "";
+  const counts = `<span class="who-yes${level}"><span aria-hidden="true">${GLYPH.yes}</span><span class="sr-only">${LABEL.yes}: </span>${yes}</span>`;
+  return `<details class="who-d" data-who="${esc(m.i)}"${whoOpen.has(m.i) ? " open" : ""}><summary aria-label="${yes} ${yes === 1 ? "komt" : "komen"}${hint}. Toon namen">${counts}</summary><div class="who" aria-live="polite">${full}</div></details>`;
 }
 function whoHtml(m) {
   if (!shared.enabled || !others) return "";
@@ -699,12 +699,12 @@ function refreshFill() { const el = $("#fill-warn"); if (el) el.innerHTML = pres
 const inviteLink = () => `${location.origin}${location.pathname}#groep=${groupOf()}&team=${encodeURIComponent(state.active)}`;
 
 // Delen via het deelmenu van het toestel (WhatsApp enzovoort); zonder deelmenu naar het klembord.
-async function shareText(text, title) {
+async function shareText(text, title, copied = "Overzicht gekopieerd. Plak het in je teamapp.") {
   if (navigator.share) {
     try { await navigator.share({ title, text }); return; }
     catch (e) { if (e.name === "AbortError") return; } // geannuleerd: niets doen
   }
-  await navigator.clipboard.writeText(text).then(() => toast("Overzicht gekopieerd. Plak het in je teamapp."), () => prompt("Kopieer:", text));
+  await navigator.clipboard.writeText(text).then(() => toast(copied), () => prompt("Kopieer:", text));
 }
 
 function groupLine() {
@@ -907,7 +907,7 @@ async function onGroupClick(e) {
   } else if (id === "g-sub") {
     const name = (prompt("Naam van de invaller") || "").trim().slice(0, 30);
     if (!name) return;
-    shareText(`Doe mee als invaller bij ${teamIndex.get(state.active)?.naam || "ons team"}: open de link, kijk wie er komt en geef je aanwezigheid door.\n${inviteLink()}&naam=${encodeURIComponent(name)}`, "Invaller uitnodigen");
+    shareText(`Doe mee als invaller bij ${teamIndex.get(state.active)?.naam || "ons team"}: open de link, kijk wie er komt en geef je aanwezigheid door.\n${inviteLink()}&naam=${encodeURIComponent(name)}`, "Invaller uitnodigen", "Uitnodiging gekopieerd. Plak hem in een bericht aan de invaller.");
   } else if (id === "g-share") shareText(overviewText(teamIndex.get(state.active)), "Wie komt er?");
   else if (id === "g-forward") shareText(forwardText(teamIndex.get(state.active)), "Mijn aanwezigheid");
   else if (id === "p-skip") { pendingProposal = null; dlg.close(); }
