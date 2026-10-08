@@ -341,7 +341,7 @@ function renderSearch() {
     const b = e.target.closest("button[data-key]");
     if (b) selectTeam(b.dataset.key);
   });
-  $("#back")?.addEventListener("click", () => { state.searching = false; render(); $("#change")?.focus(); });
+  $("#back")?.addEventListener("click", () => { pendingCode = pendingName = pendingId = ""; state.searching = false; render(); $("#change")?.focus(); });
   updateResults();
   q.focus({ preventScroll: true });
 }
@@ -1302,7 +1302,11 @@ function applyLink(params) {
 function parseLinkText(text) {
   const t = (text || "").trim();
   const i = t.indexOf("groep=");
-  if (i >= 0) return new URLSearchParams(t.slice(i).split(/\s/)[0]); // tekst na de link (bijvoorbeeld "Groet, Piet") hoort er niet bij
+  if (i >= 0) {
+    // Tekst na de link (bijvoorbeeld "Groet, Piet") en leestekens direct erachter horen er niet bij.
+    const params = new URLSearchParams(t.slice(i).split(/\s/)[0].replace(/[.,;:!?)\]}>"']+$/, ""));
+    return shared.validCode(shared.cleanCode(params.get("groep") || "")) ? params : null;
+  }
   return shared.validCode(shared.cleanCode(t)) ? new URLSearchParams({ groep: t }) : null;
 }
 
