@@ -33,8 +33,20 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
 }
 function save() {
-  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups, watch: state.watch, seen: state.seen })); } catch { /* privémodus */ }
+  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups, watch: state.watch, seen: state.seen, names: state.names })); } catch { /* privémodus */ }
   syncManifest();
+}
+
+// Naam en club bewaren naast de sleutel van elk team dat je gebruikt (favoriet of groep). Verandert Nevobo de sleutel van een
+// team, dan vinden we het team op naam terug (zie moveTeam) in plaats van dat je favoriet en groep stil verdwijnen.
+function rememberNames() {
+  if (!teamIndex) return;
+  let dirty = false;
+  for (const k of new Set([...state.favs, ...Object.keys(state.groups)])) {
+    const t = teamIndex.get(k);
+    if (t && (state.names[k]?.n !== t.naam || state.names[k]?.c !== t.club)) { state.names[k] = { n: t.naam, c: t.club }; dirty = true; }
+  }
+  if (dirty) save();
 }
 
 // EXPERIMENT: een geïnstalleerde app heeft soms een eigen opslag (iPhone altijd): dan start hij zonder groep. Daarom krijgt de
@@ -67,6 +79,7 @@ function syncManifest() {
 }
 const state = { favs: [], active: null, att: {}, name: "", groups: {}, watch: {}, seen: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
+if (typeof state.names !== "object" || !state.names || Array.isArray(state.names)) state.names = {};
 
 // ---- Aanwezigheid: per wedstrijd ja / misschien / nee ----
 // Je eigen keuze staat altijd op dit toestel. Is Firebase ingesteld (firebase-config.js), dan
@@ -1142,6 +1155,7 @@ async function loadMatchesNow() {
   }
   if (state.active === key && !state.searching) renderMatches();
   if (state.matches?.length) loadOthers();
+  if (state.matches && !upcomingOf(state.matches).length) adoptSibling(key).catch(() => {});
 }
 
 // ---- Vereniging: alle thuiswedstrijden van alle teams ----
@@ -1214,6 +1228,51 @@ function offerPendingJoin() {
   openGroupDialog(showCode(code), name, id);
 }
 
+// Favoriet, groep en 'alleen kijken' van de ene teamsleutel naar de andere verhuizen. Bestaat bij de nieuwe sleutel al een groep, dan blijft die.
+function moveTeam(from, to) {
+  if (from === to) return;
+  state.favs = [...new Set(state.favs.map((k) => (k === from ? to : k)))];
+  if (state.groups[from] && !state.groups[to]) { state.groups[to] = state.groups[from]; if (state.watch[from]) state.watch[to] = true; }
+  delete state.groups[from]; delete state.watch[from]; delete state.names[from];
+  if (state.active === from) state.active = to;
+  save();
+  rememberNames();
+}
+
+// Is de sleutel van een favoriet of groep uit de teamlijst verdwenen? Zoek het team op naam en club; zijn er meer kandidaten, dan wint
+// degene met komende wedstrijden. Alleen bij precies één winnaar verhuizen we, anders blijft alles zoals het is.
+async function migrateMissing() {
+  for (const old of [...new Set([...state.favs, ...(state.active ? [state.active] : []), ...Object.keys(state.groups)])]) {
+    const was = state.names[old];
+    if (teamIndex.has(old) || !was) continue;
+    let cands = teamList.filter((t) => t.naam === was.n && t.club === was.c);
+    if (cands.length > 1 && cands.length <= 5) cands = await withProgram(cands);
+    if (cands.length !== 1) continue;
+    moveTeam(old, cands[0].key);
+    toast(`${cands[0].naam} heeft een nieuwe code bij Nevobo. Je favoriet${state.groups[cands[0].key] ? " en je groep zijn" : " is"} meeverhuisd.`);
+  }
+}
+
+// Van deze teams alleen die met komende wedstrijden in het programma.
+async function withProgram(teams) {
+  const lists = await Promise.all(teams.map((t) => fetch(`data/t/${t.key.replace(/\//g, "-")}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+  return teams.filter((_, i) => lists[i] && upcomingOf((lists[i].m || []).filter((m) => !isNaN(parseDt(m.s)))).length);
+}
+
+// Heeft dit team geen komende wedstrijden, maar bestaat er een team met dezelfde naam en club dat die wel heeft? Dan hing je favoriet
+// aan een oude, lege sleutel (zoals bij Bernisse HS 2): verhuis naar die. Maar bij precies één kandidaat; anders laten we het zoals het is.
+async function adoptSibling(key) {
+  const me = teamIndex.get(key);
+  if (!me || !state.favs.includes(key)) return;
+  const sibs = teamList.filter((t) => t.key !== key && t.naam === me.naam && t.club === me.club);
+  if (!sibs.length || sibs.length > 5) return;
+  const live = await withProgram(sibs);
+  if (live.length !== 1 || state.active !== key) return;
+  moveTeam(key, live[0].key);
+  toast(`${me.naam} heeft een nieuwe code bij Nevobo. Je favoriet${state.groups[live[0].key] ? " en je groep zijn" : " is"} meeverhuisd.`);
+  render();
+}
+
 function selectTeam(key, makeFav = true) {
   state.active = key;
   state.club = null;
@@ -1223,6 +1282,7 @@ function selectTeam(key, makeFav = true) {
   const added = makeFav && !state.favs.includes(key);
   if (added) state.favs.push(key); // gekozen team wordt je favoriet
   save();
+  rememberNames();
   render();
   $("#team-name")?.focus({ preventScroll: true });
   if (added) toast("Opgeslagen als je team (ster). Tik op de ster om te verwijderen.");
@@ -1230,10 +1290,12 @@ function selectTeam(key, makeFav = true) {
 }
 
 function render() {
-  if (state.active && !teamIndex.has(state.active)) { // team bestaat niet meer (nieuw seizoen)
-    state.favs = state.favs.filter((k) => k !== state.active);
+  if (state.active && !teamIndex.has(state.active)) { // sleutel bestaat niet meer (nieuw seizoen of door Nevobo veranderd)
+    const old = state.active;
+    state.favs = state.favs.filter((k) => k !== old);
     state.active = state.favs[0] || null;
     save();
+    toast(`${state.names[old] ? state.names[old].n : "Je team"} staat niet meer in de teamlijst. Zoek het team opnieuw${state.groups[old] ? "; je groep blijft bewaard en kun je met de code weer koppelen" : ""}.`);
   }
   if (state.searching || !state.active) return renderSearch();
   if (state.club) return renderClub();
@@ -1258,6 +1320,8 @@ async function main() {
     $("#again").addEventListener("click", main);
     return;
   }
+  await migrateMissing().catch(() => {});
+  rememberNames();
   render();
   // Link met #groep=CODE&team=<sleutel>[&naam=<naam>][&van=<afzender>&a=<keuzes>]: kies dat team en open het deelnemen-blad
   // met de code (en bij een herstel-link je naam) al ingevuld. Meegestuurde keuzes neem je bij deelnemen over; zit je al in de
