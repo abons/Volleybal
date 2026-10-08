@@ -177,7 +177,7 @@ async function fetchData() {
     // Antwoordt Nevobo met een leeg programma terwijl we vorige keer nog komende wedstrijden hadden, dan is dat vrijwel zeker een
     // tijdelijke hapering van de export: houd de vorige versie, anders is het programma tot de volgende run weg.
     if (!m.length && existsSync(old)) {
-      const prev = JSON.parse(await readFile(old, "utf8")).m || [];
+      const prev = await readFile(old, "utf8").then((t) => JSON.parse(t).m || [], () => []);
       if (prev.some((x) => x.s >= nowStamp)) { m = prev; kept++; }
     }
     if (!m.length) empty++;
