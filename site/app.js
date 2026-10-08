@@ -1138,7 +1138,7 @@ async function loadMatchesNow() {
   const key = state.active;
   if (!state.searching) renderMatches();
   try {
-    const res = await fetch(`data/t/${key.replace(/\//g, "-")}.json`);
+    const res = await fetch(`data/t/${key.replace(/\//g, "-")}.json`, { cache: "no-cache" });
     if (res.status === 404) state.matches = [];
     else if (!res.ok) throw new Error();
     else {
@@ -1181,7 +1181,7 @@ async function renderClub() {
   let failed = 0;
   await Promise.all(teams.map(async (t) => {
     try {
-      const res = await fetch(`data/t/${t.key.replace(/\//g, "-")}.json`);
+      const res = await fetch(`data/t/${t.key.replace(/\//g, "-")}.json`, { cache: "no-cache" });
       if (res.status === 404) return;
       if (!res.ok) throw new Error();
       const j = await res.json();
@@ -1258,7 +1258,7 @@ async function migrateMissing() {
 
 // Van deze teams alleen die met komende wedstrijden in het programma.
 async function withProgram(teams) {
-  const lists = await Promise.all(teams.map((t) => fetch(`data/t/${t.key.replace(/\//g, "-")}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
+  const lists = await Promise.all(teams.map((t) => fetch(`data/t/${t.key.replace(/\//g, "-")}.json`, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
   return teams.filter((_, i) => lists[i] && upcomingOf((lists[i].m || []).filter((m) => !isNaN(parseDt(m.s)))).length);
 }
 
