@@ -158,7 +158,8 @@ async function fetchData() {
 
   await rm(`${DATA}/t.new`, { recursive: true, force: true });
   await mkdir(`${DATA}/t.new`, { recursive: true });
-  let done = 0, failed = 0, empty = 0;
+  let done = 0, failed = 0, empty = 0, kept = 0;
+  const nowStamp = new Date(Date.now() - 3 * 3600e3).toISOString().replace(/[-:]/g, "").replace(/\.\d+/, ""); // zelfde marge als de app
   console.log("Programma's ophalen…");
   await pool(teams, async ([key]) => {
     const [code, type, nr] = key.split("/");
@@ -173,11 +174,17 @@ async function fetchData() {
       if (failed <= 10) console.warn("  mislukt:", err.message);
       m = existsSync(old) ? JSON.parse(await readFile(old, "utf8")).m || [] : [];
     }
+    // Antwoordt Nevobo met een leeg programma terwijl we vorige keer nog komende wedstrijden hadden, dan is dat vrijwel zeker een
+    // tijdelijke hapering van de export: houd de vorige versie, anders is het programma tot de volgende run weg.
+    if (!m.length && existsSync(old)) {
+      const prev = JSON.parse(await readFile(old, "utf8")).m || [];
+      if (prev.some((x) => x.s >= nowStamp)) { m = prev; kept++; }
+    }
     if (!m.length) empty++;
     await writeFile(file, JSON.stringify({ m, r: results.get(key) || [], p: poulesFor(key) }));
     if (++done % 1000 === 0) console.log(`  ${done}/${teams.length}`);
   });
-  console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden`);
+  console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden, ${kept} leeg antwoord met vorige versie behouden`);
   if (failed > teams.length * 0.05) throw new Error("Te veel mislukte verzoeken, ik publiceer niets nieuws.");
 
   // Vergelijk met de vorige run: een export die plotseling massaal leeg is, publiceren we niet.
