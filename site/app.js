@@ -159,6 +159,19 @@ async function reconcile(code, list) {
   await Promise.all(jobs);
 }
 
+// Staat het team van deze groep in het groepsdocument, en klopt het? Anders (als lid) bijwerken. Eén keer per sessie per groep; mislukt het
+// (bijvoorbeeld omdat de nieuwe regels nog niet online staan), dan merk je er niets van.
+const teamSynced = new Set();
+async function syncGroupTeam(code, key) {
+  const team = teamIndex.get(key);
+  if (!team || teamSynced.has(code)) return;
+  teamSynced.add(code);
+  try {
+    const info = await shared.groupInfo(code);
+    if (info && (info.team !== team.key || info.naam !== team.naam || (info.club || "") !== (team.club || ""))) await shared.setGroupTeam(code, team);
+  } catch { /* nieuwe regels nog niet online of geen verbinding: volgende sessie opnieuw */ }
+}
+
 async function loadOthers() {
   const code = groupOf();
   const key = state.active;
@@ -181,7 +194,7 @@ async function loadOthers() {
     memberCount = memberList.length;
     // eigen keuzes die in de groep ontbreken of afwijken, gelijktrekken (op de achtergrond)
     const mineRemote = [...map.entries()].flatMap(([match, l]) => l.filter((o) => o.uid === myUid).map((o) => ({ ...o, match })));
-    if (!viewing()) reconcile(code, mineRemote).catch(() => {});
+    if (!viewing()) { reconcile(code, mineRemote).catch(() => {}); syncGroupTeam(code, key); }
   } catch { if (!stale()) state.shareError = true; }
   if (!stale()) refreshShared();
 }
@@ -942,7 +955,7 @@ async function onGroupClick(e) {
   if (id === "g-create") groupAction(btn, async (name) => {
     if (!name) throw new Error("name");
     const code = shared.newCode();
-    await shared.createGroup(code, name);
+    await shared.createGroup(code, name, teamIndex.get(state.active));
     state.name = name; state.groups[state.active] = code; delete state.watch[state.active]; save();
     toast("Groep gemaakt. Deel de code met je team.");
     afterGroupChange(true, true);
@@ -1246,8 +1259,13 @@ function moveTeam(from, to) {
 // degene met komende wedstrijden. Alleen bij precies één winnaar verhuizen we, anders blijft alles zoals het is.
 async function migrateMissing() {
   for (const old of [...new Set([...state.favs, ...(state.active ? [state.active] : []), ...Object.keys(state.groups)])]) {
-    const was = state.names[old];
-    if (teamIndex.has(old) || !was) continue;
+    if (teamIndex.has(old)) continue;
+    let was = state.names[old];
+    if (!was && state.groups[old] && shared.enabled) { // naam niet bewaard op dit toestel: de groep weet het
+      const info = await shared.groupInfo(state.groups[old]).catch(() => null);
+      if (info?.naam) was = { n: info.naam, c: info.club || "" };
+    }
+    if (!was) continue;
     let cands = teamList.filter((t) => t.naam === was.n && t.club === was.c);
     if (cands.length > 1 && cands.length <= 5) cands = await withProgram(cands);
     if (cands.length !== 1) continue;

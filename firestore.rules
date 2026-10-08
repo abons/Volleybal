@@ -1,15 +1,29 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{db}/documents {
+    // Teamvelden van een groep: korte teksten, of niet aanwezig.
+    function teamFieldsOk(d) {
+      return (!('team' in d) || (d.team is string && d.team.size() <= 100))
+        && (!('naam' in d) || (d.naam is string && d.naam.size() <= 100))
+        && (!('club' in d) || (d.club is string && d.club.size() <= 100));
+    }
+
     // Een groep is een document met een geheime code als id. De groepen zelf zijn niet op te sommen (geen list):
     // wie de code kent, kan de groep openen. Dat is de enige toegangscontrole.
     match /groups/{code} {
       allow get: if request.auth != null;
+      // `team`, `naam` en `club` zijn optioneel: het team waar de groep bij hoort, zodat de app het terugvindt als Nevobo de teamsleutel
+      // verandert. Alleen leden mogen ze later bijwerken, en niets anders in het document.
       allow create: if request.auth != null
         && code.matches('^[A-HJ-NP-Z2-9]{10}$')
-        && request.resource.data.keys().hasOnly(['by', 'created'])
+        && request.resource.data.keys().hasOnly(['by', 'created', 'team', 'naam', 'club'])
         && request.resource.data.by == request.auth.uid
-        && request.resource.data.created is string && request.resource.data.created.size() < 40;
+        && request.resource.data.created is string && request.resource.data.created.size() < 40
+        && teamFieldsOk(request.resource.data);
+      allow update: if request.auth != null
+        && exists(/databases/$(db)/documents/groups/$(code)/members/$(request.auth.uid))
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['team', 'naam', 'club'])
+        && teamFieldsOk(request.resource.data);
 
       // Leden: één document per lid, id = uid van de anonieme gebruiker.
       // Verwijderen mag iedereen met de code: zo ruim je een "spook" op van een toestel dat zijn opslag kwijt is

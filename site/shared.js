@@ -84,11 +84,26 @@ export const writeMember = async (code, name) => {
   return call(`/groups/${code}/members/${uid}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ uid, name }) }) });
 };
 
-export async function createGroup(code, name) {
+// `team` ({ key, naam, club }) wordt in het groepsdocument bewaard, zodat de app het team terugvindt als Nevobo de teamsleutel verandert.
+// Staan de nieuwe regels (firestore.rules) nog niet online, dan weigert Firestore de extra velden: maak de groep dan zonder.
+const teamFields = (t) => (t ? { team: String(t.key).slice(0, 100), naam: String(t.naam).slice(0, 100), club: String(t.club || "").slice(0, 100) } : {});
+export async function createGroup(code, name, team) {
   const uid = await myUid();
-  await call(`/groups/${code}`, { method: "PATCH", body: JSON.stringify({ fields: fields({ by: uid, created: new Date().toISOString() }) }) });
+  const base = { by: uid, created: new Date().toISOString() };
+  const put = (f) => call(`/groups/${code}`, { method: "PATCH", body: JSON.stringify({ fields: fields(f) }) });
+  try { await put({ ...base, ...teamFields(team) }); } catch (e) { if (!team) throw e; await put(base); }
   await writeMember(code, name);
 }
+
+// Het groepsdocument lezen ({ by, created, team?, naam?, club? }); null als de groep niet bestaat.
+export async function groupInfo(code) {
+  try { return plain(await call(`/groups/${code}`)); }
+  catch (e) { if (/404/.test(e.message)) return null; throw e; }
+}
+
+// Team bij de groep bewaren of bijwerken (alleen leden mogen dat volgens firestore.rules). Alleen deze drie velden worden aangeraakt.
+export const setGroupTeam = (code, team) =>
+  call(`/groups/${code}?updateMask.fieldPaths=team&updateMask.fieldPaths=naam&updateMask.fieldPaths=club`, { method: "PATCH", body: JSON.stringify({ fields: fields(teamFields(team)) }) });
 
 // Gooit Error("notfound") als de code niet bestaat.
 export async function joinGroup(code, name) {
