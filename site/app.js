@@ -1232,8 +1232,11 @@ function offerPendingJoin() {
 function moveTeam(from, to) {
   if (from === to) return;
   state.favs = [...new Set(state.favs.map((k) => (k === from ? to : k)))];
-  if (state.groups[from] && !state.groups[to]) { state.groups[to] = state.groups[from]; if (state.watch[from]) state.watch[to] = true; }
-  delete state.groups[from]; delete state.watch[from]; delete state.names[from];
+  if (state.groups[from] && !state.groups[to]) { // alleen verhuizen als er bij de nieuwe sleutel nog geen groep is; anders raak je een groepscode kwijt
+    state.groups[to] = state.groups[from]; if (state.watch[from]) state.watch[to] = true;
+    delete state.groups[from]; delete state.watch[from];
+  }
+  delete state.names[from];
   if (state.active === from) state.active = to;
   save();
   rememberNames();
