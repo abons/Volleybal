@@ -137,6 +137,14 @@ Zonder `LIMIT` duurt een volledige run ongeveer 8 minuten. De standen en uitslag
 - **Verandert de Nevobo-API?** De build controleert aantallen (te weinig standen, uitslagen of programma's, of meer dan 5% mislukte
   verzoeken) en faalt dan bewust: de live site blijft op de laatste goede data staan. Kijk in de log van de run
   (de regel `SAMENVATTING …` onderaan toont de aantallen) en pas `scripts/build.mjs` aan.
+  Gaat het om een echte seizoenswissel waarin Nevobo alle programma's leegt, start dan de workflow handmatig (Run workflow) met
+  *allow_drop* aan; dat slaat alleen de controle op "veel minder programma's" over.
+- **Leeg antwoord van Nevobo voor één team**: geeft de export een leeg programma terwijl de vorige versie nog komende wedstrijden had,
+  dan houdt de build die vorige versie maximaal `KEEP_HOURS` (standaard 20 uur, bij een schema van 12 uur dus twee runs) vast. De
+  eerste lege waarneming staat als `z` (ms sinds 1970) in het teambestand; de app leest dat veld niet. Daarna wordt het lege
+  programma gepubliceerd, zodat een verdwenen of verhuisd team zichtbaar wordt. Een mislukt verzoek telt niet als leeg. Een ics met
+  alleen vervallen wedstrijden (`STATUS:CANCELLED`) of in een formaat dat `ics.mjs` niet leest, telt hetzelfde als leeg. De logica
+  staat in `scripts/keep.mjs` met tests in `scripts/test-keep.mjs`.
 - **Cache**: `_data/` (niet in git) wordt tussen runs bewaard met `actions/cache`; verwijder de cache onder Actions → Caches om
   alles opnieuw op te halen.
 - **Nieuwe versie van de app**: telefoons pakken die vanzelf op; de pagina herlaadt dan één keer. Een geopende zoekterm of tab

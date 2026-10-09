@@ -6,6 +6,11 @@ on:
   schedule:
     - cron: "17 4,16 * * *" # twee keer per dag verse wedstrijddata van Nevobo
   workflow_dispatch:
+    inputs:
+      allow_drop:
+        description: "Publiceer ook als er veel minder programma's zijn dan vorige run (seizoenswissel)"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -38,6 +43,7 @@ jobs:
         run: node scripts/build.mjs
         env:
           FORCE: ${{ github.event_name != 'push' && '1' || '' }}
+          ALLOW_DROP: ${{ github.event.inputs.allow_drop == 'true' && '1' || '' }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

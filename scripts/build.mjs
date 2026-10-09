@@ -8,6 +8,7 @@
 import { mkdir, readFile, writeFile, rm, cp, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { parseIcs } from "./ics.mjs";
+import { decideKeep } from "./keep.mjs";
 
 const API = "https://api.nevobo.nl";
 const DATA = "_data";
@@ -15,6 +16,7 @@ const OUT = "_site";
 const MAX_AGE_H = Number(process.env.MAX_AGE_H || 10);
 const LIMIT = Number(process.env.LIMIT || 0);
 const CONCURRENCY = Number(process.env.CONCURRENCY || 8);
+const KEEP_HOURS = Number(process.env.KEEP_HOURS || 20); // zo lang houden we het vorige programma vast bij een leeg antwoord (twee runs van 12 uur)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -158,33 +160,32 @@ async function fetchData() {
 
   await rm(`${DATA}/t.new`, { recursive: true, force: true });
   await mkdir(`${DATA}/t.new`, { recursive: true });
-  let done = 0, failed = 0, empty = 0, kept = 0;
-  const nowStamp = new Date(Date.now() - 3 * 3600e3).toISOString().replace(/[-:]/g, "").replace(/\.\d+/, ""); // zelfde marge als de app
+  let done = 0, failed = 0, empty = 0, kept = 0, expired = 0;
   console.log("Programma's ophalen…");
   await pool(teams, async ([key]) => {
     const [code, type, nr] = key.split("/");
     const file = `${DATA}/t.new/${fileFor(key)}`;
     const old = `${DATA}/t/${fileFor(key)}`; // vorige versie, als terugval
-    let m;
+    const prev = existsSync(old) ? await readFile(old, "utf8").then((t) => JSON.parse(t), () => null) : null;
+    let fetched;
     try {
       const ics = await get(`/export/team/${code.toUpperCase()}/${type}/${nr}/programma.ics`, "text/calendar");
-      m = ics ? parseIcs(ics) : [];
+      fetched = ics ? parseIcs(ics) : [];
     } catch (err) {
       failed++;
       if (failed <= 10) console.warn("  mislukt:", err.message);
-      m = existsSync(old) ? JSON.parse(await readFile(old, "utf8")).m || [] : [];
+      fetched = null; // mislukt is iets anders dan leeg: zie keep.mjs
     }
-    // Antwoordt Nevobo met een leeg programma terwijl we vorige keer nog komende wedstrijden hadden, dan is dat vrijwel zeker een
-    // tijdelijke hapering van de export: houd de vorige versie, anders is het programma tot de volgende run weg.
-    if (!m.length && existsSync(old)) {
-      const prev = await readFile(old, "utf8").then((t) => JSON.parse(t).m || [], () => []);
-      if (prev.some((x) => x.s >= nowStamp)) { m = prev; kept++; }
-    }
-    if (!m.length) empty++;
-    await writeFile(file, JSON.stringify({ m, r: results.get(key) || [], p: poulesFor(key) }));
+    // Antwoordt Nevobo met een leeg programma terwijl we vorige keer nog komende wedstrijden hadden, dan houden we de vorige versie
+    // tijdelijk vast (maximaal KEEP_HOURS); daarna publiceren we het lege programma, zodat een verdwenen of verhuisd team zichtbaar wordt.
+    const d = decideKeep({ fetched, prev, now: Date.now(), maxHours: KEEP_HOURS });
+    if (d.kept) kept++;
+    if (d.expired) expired++;
+    if (!d.m.length) empty++;
+    await writeFile(file, JSON.stringify({ m: d.m, r: results.get(key) || [], p: poulesFor(key), ...(d.z && { z: d.z }) }));
     if (++done % 1000 === 0) console.log(`  ${done}/${teams.length}`);
   });
-  console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden, ${kept} leeg antwoord met vorige versie behouden`);
+  console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden, ${kept} leeg antwoord met vorige versie behouden, ${expired} daarvan na ${KEEP_HOURS} uur alsnog leeg gepubliceerd`);
   if (failed > teams.length * 0.05) throw new Error("Te veel mislukte verzoeken, ik publiceer niets nieuws.");
 
   // Vergelijk met de vorige run: een export die plotseling massaal leeg is, publiceren we niet.
@@ -197,7 +198,8 @@ async function fetchData() {
   const before = LIMIT ? 0 : await countWith(`${DATA}/t`);
   const after = await countWith(`${DATA}/t.new`);
   console.log(`  teams met komende wedstrijden: ${after} (vorige run ${before})`);
-  if (before > 500 && after < before * 0.5) throw new Error("Veel minder programma's dan de vorige run, ik publiceer niets nieuws.");
+  // ALLOW_DROP=1 (handmatige run met "allow_drop") is de noodknop voor een echte seizoenswissel, waarin Nevobo alle programma's leegt.
+  if (before > 500 && after < before * 0.5 && !process.env.ALLOW_DROP) throw new Error("Veel minder programma's dan de vorige run, ik publiceer niets nieuws. Is dit een seizoenswissel? Start de workflow handmatig met allow_drop.");
 
   await rm(`${DATA}/t`, { recursive: true, force: true });
   await cp(`${DATA}/t.new`, `${DATA}/t`, { recursive: true });
