@@ -8,7 +8,7 @@
 import { mkdir, readFile, writeFile, rm, cp, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { parseIcs } from "./ics.mjs";
-import { decideKeep } from "./keep.mjs";
+import { decideKeep, stampOf } from "./keep.mjs";
 
 const API = "https://api.nevobo.nl";
 const DATA = "_data";
@@ -139,6 +139,8 @@ async function fetchCompetition() {
   return { results, poulesFor };
 }
 
+let runStats = ""; // diagnose van deze run (leeg als de data hergebruikt werd)
+
 async function fetchData() {
   console.log("Verenigingen ophalen…");
   const clubs = new Map();
@@ -160,16 +162,17 @@ async function fetchData() {
 
   await rm(`${DATA}/t.new`, { recursive: true, force: true });
   await mkdir(`${DATA}/t.new`, { recursive: true });
-  let done = 0, failed = 0, empty = 0, kept = 0, expired = 0;
+  let done = 0, failed = 0, empty = 0, kept = 0, expired = 0, rawEmpty = 0, lost = 0, shown = 0;
+  const nowStamp = stampOf(Date.now());
   console.log("Programma's ophalen…");
   await pool(teams, async ([key]) => {
     const [code, type, nr] = key.split("/");
     const file = `${DATA}/t.new/${fileFor(key)}`;
     const old = `${DATA}/t/${fileFor(key)}`; // vorige versie, als terugval
     const prev = existsSync(old) ? await readFile(old, "utf8").then((t) => JSON.parse(t), () => null) : null;
-    let fetched;
+    let fetched, ics;
     try {
-      const ics = await get(`/export/team/${code.toUpperCase()}/${type}/${nr}/programma.ics`, "text/calendar");
+      ics = await get(`/export/team/${code.toUpperCase()}/${type}/${nr}/programma.ics`, "text/calendar");
       fetched = ics ? parseIcs(ics) : [];
     } catch (err) {
       failed++;
@@ -179,6 +182,12 @@ async function fetchData() {
     // Antwoordt Nevobo met een leeg programma terwijl we vorige keer nog komende wedstrijden hadden, dan houden we de vorige versie
     // tijdelijk vast (maximaal KEEP_HOURS); daarna publiceren we het lege programma, zodat een verdwenen of verhuisd team zichtbaar wordt.
     const d = decideKeep({ fetched, prev, now: Date.now(), maxHours: KEEP_HOURS });
+    // Diagnose: wat gaf Nevobo bij een leeg antwoord (de eerste 10 teams; geen volledige inhoud, alleen status, lengte en het begin)?
+    if (fetched?.length === 0) {
+      rawEmpty++;
+      if (shown++ < 10) console.log(`  leeg antwoord: ${key} ${ics === null ? "404" : `200, ${ics.length} tekens: ${JSON.stringify(ics.slice(0, 80))}`}${d.kept ? " (vorige versie behouden)" : ""}`);
+    }
+    if (prev?.m?.some((x) => x.s >= nowStamp) && !d.m.some((x) => x.s >= nowStamp)) lost++; // vorige run wel komende wedstrijden, nu niet (na het vangnet)
     if (d.kept) kept++;
     if (d.expired) expired++;
     if (!d.m.length) empty++;
@@ -186,6 +195,11 @@ async function fetchData() {
     if (++done % 1000 === 0) console.log(`  ${done}/${teams.length}`);
   });
   console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden, ${kept} leeg antwoord met vorige versie behouden, ${expired} daarvan na ${KEEP_HOURS} uur alsnog leeg gepubliceerd`);
+  console.log(`  diagnose: ${rawEmpty} leeg antwoord, ${kept} behouden, ${lost} van 'wel' naar 'geen' komende wedstrijden`);
+  // Alleen een waarschuwing in de Actions-log (de build blijft slagen): een plotselinge stijging is meestal een hapering of wijziging bij Nevobo.
+  const warnAt = Math.max(20, Math.ceil(teams.length * 0.02));
+  if (kept > warnAt || lost > warnAt) console.log(`::warning::Veel teams met een leeg antwoord van Nevobo: ${rawEmpty} leeg, ${kept} behouden, ${lost} van wel naar geen komende wedstrijden (drempel ${warnAt}).`);
+  runStats = ` · leeg antwoord ${rawEmpty}, behouden ${kept}, wel→geen ${lost}`;
   if (failed > teams.length * 0.05) throw new Error("Te veel mislukte verzoeken, ik publiceer niets nieuws.");
 
   // Vergelijk met de vorige run: een export die plotseling massaal leeg is, publiceren we niet.
@@ -239,6 +253,6 @@ for (const f of await readdir(`${OUT}/data/t`)) {
   if (j.p?.length) withStand++;
   if (j.m?.length) withMatches++;
 }
-const summary = `SAMENVATTING build ${stamp}: ${nT} teams, ${nP} standen; teams met programma ${withMatches}, uitslagen ${withResults}, stand ${withStand}`;
+const summary = `SAMENVATTING build ${stamp}: ${nT} teams, ${nP} standen; teams met programma ${withMatches}, uitslagen ${withResults}, stand ${withStand}${runStats}`;
 console.log(summary);
 await writeFile(`${DATA}/summary.txt`, summary + "\n");

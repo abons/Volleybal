@@ -145,6 +145,9 @@ Zonder `LIMIT` duurt een volledige run ongeveer 8 minuten. De standen en uitslag
   programma gepubliceerd, zodat een verdwenen of verhuisd team zichtbaar wordt. Een mislukt verzoek telt niet als leeg. Een ics met
   alleen vervallen wedstrijden (`STATUS:CANCELLED`) of in een formaat dat `ics.mjs` niet leest, telt hetzelfde als leeg. De logica
   staat in `scripts/keep.mjs` met tests in `scripts/test-keep.mjs`.
+  De build logt per run een regel `diagnose:` (aantal lege antwoorden, behouden teams en teams die van wel naar geen komende
+  wedstrijden gingen), voor de eerste tien lege antwoorden de status en het begin van de respons, en een `::warning::` als dat sterk
+  stijgt. Die waarschuwing laat de build niet falen; de cijfers staan ook achter `SAMENVATTING …`.
 - **Cache**: `_data/` (niet in git) wordt tussen runs bewaard met `actions/cache`; verwijder de cache onder Actions → Caches om
   alles opnieuw op te halen.
 - **Nieuwe versie van de app**: telefoons pakken die vanzelf op; de pagina herlaadt dan één keer. Een geopende zoekterm of tab
