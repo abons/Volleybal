@@ -67,3 +67,34 @@ export function presenceDiff(base, cur, mine = 0) {
   const before = yes(base), now = yes(cur);
   return { changes, before, now, dropped: before >= ENOUGH && now < ENOUGH };
 }
+
+// ---- Team verhuizen als Nevobo de teamsleutel verandert ----
+// Pure beslislogica; app.js haalt de gegevens op (teamlijst, programma's, groepsdocument) en voert de verhuizing uit.
+
+// Naam of club vergelijken: hoofdletters, accenten, spaties en leestekens negeren ("HS 2" is "H S 2"), verder niets: liever geen match dan een foute.
+export const normName = (s) => String(s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+
+// Het type (heren, dames, ...) uit een sleutel "club/type/nr".
+export const keyType = (key) => String(key ?? "").split("/")[1] || "";
+
+// Teams uit de lijst die in aanmerking komen als nieuwe sleutel voor `from` ({ naam, club, type }): dezelfde naam en club (genormaliseerd),
+// hetzelfde type, en niet de sleutel zelf. teams: [{ key, naam, club }].
+export function candidatesFor(teams, from, fromKey) {
+  const n = normName(from?.naam), c = normName(from?.club);
+  if (!n) return [];
+  return (teams || []).filter((t) => t.key !== fromKey && normName(t.naam) === n && normName(t.club) === c && keyType(t.key) === from.type);
+}
+
+// Welke kandidaat is het nieuwe team? programs: Map(sleutel -> { ok, upcoming }): ok = het programma is geladen (een mislukte
+// verwerking is iets anders dan een leeg programma), upcoming = er staan komende wedstrijden in.
+// Geeft { target } bij precies één kandidaat met komende wedstrijden; anders { uncertain: true } (iets kon niet geladen worden:
+// dan niets doen en niets schrappen) of { } (geen of meerdere kandidaten: laten zoals het is).
+export function pickTarget(cands, programs) {
+  if (!cands?.length) return {};
+  for (const t of cands) if (!programs?.get(t.key)?.ok) return { uncertain: true };
+  const live = cands.filter((t) => programs.get(t.key).upcoming);
+  return live.length === 1 ? { target: live[0] } : {};
+}
+
+// Noemt het groepsdocument ({ naam, club }) hetzelfde team als het doel? Zonder naam in het document is er niets bevestigd.
+export const groupConfirms = (info, team) => !!info?.naam && normName(info.naam) === normName(team?.naam) && normName(info.club) === normName(team?.club);

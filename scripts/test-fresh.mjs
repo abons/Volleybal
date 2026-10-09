@@ -2,7 +2,7 @@
 // Draai met: node --test "scripts/test-*.mjs"
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices, presenceDiff } from "../site/fresh.js";
+import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices, presenceDiff, normName, keyType, candidatesFor, pickTarget, groupConfirms } from "../site/fresh.js";
 
 const MOVED = { i: "083045eb753448140d4b3dd92f504d76", s: "20270306T160000Z" }; // was 27 feb
 const SAME = { i: "0d90975dd78f15c1a77ae665b61bf283", s: "20261114T170000Z" };
@@ -101,4 +101,62 @@ test("presenceDiff: onveranderd, verdwenen keuze en nooit genoeg", () => {
 test("presenceDiff: herstel-link (nieuw uid, zelfde naam) is geen wijziging", () => {
   assert.deepEqual(presenceDiff({ old: ["yes", "Casper"] }, { new: ["yes", "Casper"] }).changes, []);
   assert.deepEqual(presenceDiff({ old: ["yes", "Casper"] }, { new: ["no", "Casper"] }).changes, [{ name: "Casper", from: "yes", to: "no" }]);
+});
+
+// ---- Team verhuizen als Nevobo de teamsleutel verandert ----
+const TEAMS = [
+  { key: "old/heren/2", naam: "Bernisse HS 2", club: "Bernisse" },
+  { key: "new/heren/2", naam: "Bernisse HS 2", club: "Bernisse" },
+  { key: "new/dames/2", naam: "Bernisse HS 2", club: "Bernisse" }, // ander type
+  { key: "x/heren/2", naam: "Bernisse HS 2", club: "Ander" }, // andere club
+  { key: "y/heren/1", naam: "Bernisse HS 1", club: "Bernisse" }, // andere naam
+];
+
+test("normName: spaties, hoofdletters, accenten en leestekens tellen niet, fuzzy matching ook niet", () => {
+  assert.equal(normName("Bernisse HS 2"), normName("bernisse  h s 2"));
+  assert.equal(normName("OKK '70 HS 4"), normName("okk 70 hs 4"));
+  assert.equal(normName("Café"), normName("cafe"));
+  assert.notEqual(normName("Bernisse HS 2"), normName("Bernisse HS 3"));
+  assert.equal(normName(undefined), "");
+});
+
+test("keyType: het type uit club/type/nr", () => {
+  assert.equal(keyType("ckm1b6p/heren/2"), "heren");
+  assert.equal(keyType(""), "");
+});
+
+test("candidatesFor: zelfde naam, club en type; niet de sleutel zelf", () => {
+  const c = candidatesFor(TEAMS, { naam: "Bernisse HS 2", club: "Bernisse", type: "heren" }, "old/heren/2");
+  assert.deepEqual(c.map((t) => t.key), ["new/heren/2"]);
+  assert.deepEqual(candidatesFor(TEAMS, { naam: "", club: "Bernisse", type: "heren" }, "old/heren/2"), []);
+  assert.deepEqual(candidatesFor(null, { naam: "x", club: "y", type: "z" }, "k"), []);
+});
+
+const prog = (o) => new Map(Object.entries(o));
+
+test("pickTarget: precies één kandidaat met komende wedstrijden", () => {
+  const cands = TEAMS.slice(1, 2);
+  assert.equal(pickTarget(cands, prog({ "new/heren/2": { ok: true, upcoming: true } })).target.key, "new/heren/2");
+});
+
+test("pickTarget: kandidaat zonder programma, of meerdere met programma: niets doen", () => {
+  const two = [TEAMS[0], TEAMS[1]];
+  assert.deepEqual(pickTarget([TEAMS[1]], prog({ "new/heren/2": { ok: true, upcoming: false } })), {});
+  assert.deepEqual(pickTarget(two, prog({ "old/heren/2": { ok: true, upcoming: true }, "new/heren/2": { ok: true, upcoming: true } })), {});
+  assert.deepEqual(pickTarget([], prog({})), {});
+});
+
+test("pickTarget: een mislukt geladen programma is geen leeg programma (onzeker)", () => {
+  const two = [TEAMS[0], TEAMS[1]];
+  assert.deepEqual(pickTarget(two, prog({ "old/heren/2": { ok: false }, "new/heren/2": { ok: true, upcoming: true } })), { uncertain: true });
+  assert.deepEqual(pickTarget([TEAMS[1]], prog({})), { uncertain: true }); // ontbreekt helemaal
+});
+
+test("groupConfirms: het groepsdocument moet hetzelfde team noemen", () => {
+  const to = TEAMS[1];
+  assert.equal(groupConfirms({ naam: "bernisse hs 2", club: "Bernisse" }, to), true);
+  assert.equal(groupConfirms({ naam: "Bernisse HS 1", club: "Bernisse" }, to), false);
+  assert.equal(groupConfirms({ naam: "Bernisse HS 2", club: "Ander" }, to), false);
+  assert.equal(groupConfirms({}, to), false); // groep zonder teamnaam: niets bevestigd
+  assert.equal(groupConfirms(null, to), false);
 });

@@ -1,7 +1,7 @@
 // Volleybal-PWA: team zoeken, favoriet lokaal bewaren, wedstrijden naar je agenda.
 
 import * as shared from "./shared.js";
-import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices, snapshotOf, presenceDiff, ENOUGH } from "./fresh.js";
+import { sameStart, currentFor, staleIds, shouldPush, shouldDrop, missingChoices, snapshotOf, presenceDiff, ENOUGH, candidatesFor, pickTarget, groupConfirms, keyType } from "./fresh.js";
 
 const NEVOBO = "api.nevobo.nl";
 const TZ = "Europe/Amsterdam";
@@ -33,7 +33,7 @@ function load() {
   try { return JSON.parse(localStorage.getItem(STORE)) || {}; } catch { return {}; }
 }
 function save() {
-  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups, watch: state.watch, seen: state.seen, names: state.names })); } catch { /* privémodus */ }
+  try { localStorage.setItem(STORE, JSON.stringify({ favs: state.favs, active: state.active, att: state.att, name: state.name, groups: state.groups, watch: state.watch, seen: state.seen, names: state.names, moved: state.moved, noAdopt: state.noAdopt })); } catch { /* privémodus */ }
   syncManifest();
 }
 
@@ -79,7 +79,7 @@ function syncManifest() {
 }
 const state = { favs: [], active: null, att: {}, name: "", groups: {}, watch: {}, seen: {}, ...load(), searching: false, club: null, query: "", matches: null, results: [], poules: [], tables: null, tab: "programma", error: "" };
 if (!Array.isArray(state.favs)) state.favs = [];
-if (typeof state.names !== "object" || !state.names || Array.isArray(state.names)) state.names = {};
+for (const k of ["names", "moved", "noAdopt"]) if (typeof state[k] !== "object" || !state[k] || Array.isArray(state[k])) state[k] = {};
 
 // ---- Aanwezigheid: per wedstrijd ja / misschien / nee ----
 // Je eigen keuze staat altijd op dit toestel. Is Firebase ingesteld (firebase-config.js), dan
@@ -1241,60 +1241,99 @@ function offerPendingJoin() {
   openGroupDialog(showCode(code), name, id);
 }
 
-// Favoriet, groep en 'alleen kijken' van de ene teamsleutel naar de andere verhuizen. Bestaat bij de nieuwe sleutel al een groep, dan blijft die.
+// Favoriet, groep en 'alleen kijken' van de ene teamsleutel naar de andere verhuizen. Bestaat bij de nieuwe sleutel al een groep, dan blijft die
+// en blijft de oude groep staan (anders raak je een groepscode kwijt). Onthoudt de oude sleutel in state.moved. Geeft terug wat er verhuisd is.
 function moveTeam(from, to) {
-  if (from === to) return;
+  const hadGroup = !!state.groups[from];
+  let groupMoved = false;
+  if (from === to) return { hadGroup, groupMoved };
   state.favs = [...new Set(state.favs.map((k) => (k === from ? to : k)))];
-  if (state.groups[from] && !state.groups[to]) { // alleen verhuizen als er bij de nieuwe sleutel nog geen groep is; anders raak je een groepscode kwijt
+  if (hadGroup && !state.groups[to]) {
     state.groups[to] = state.groups[from]; if (state.watch[from]) state.watch[to] = true;
     delete state.groups[from]; delete state.watch[from];
+    groupMoved = true;
   }
   delete state.names[from];
+  state.moved[from] = to;
   if (state.active === from) state.active = to;
   save();
   rememberNames();
+  return { hadGroup, groupMoved };
 }
 
-// Is de sleutel van een favoriet of groep uit de teamlijst verdwenen? Zoek het team op naam en club; zijn er meer kandidaten, dan wint
-// degene met komende wedstrijden. Alleen bij precies één winnaar verhuizen we, anders blijft alles zoals het is.
+// Melding na een verhuizing: noemt de oude code, en zegt alleen dat de groep is meeverhuisd als dat zo is.
+function movedToast(from, to, { hadGroup, groupMoved }) {
+  const name = teamIndex.get(to)?.naam || "Je team";
+  const base = `Nevobo heeft ${name} een nieuwe teamcode gegeven (was ${from}). `;
+  toast(base + (groupMoved ? "Je favoriet en je groep zijn meeverhuisd." : hadGroup ? "Je favoriet is meeverhuisd; je groep staat nog bij de oude code." : "Je favoriet is meeverhuisd."));
+}
+
+// Staat het programma van dit team klaar, en zijn er komende wedstrijden? ok = false als het ophalen mislukte (geen 404): dat is iets anders dan leeg.
+async function programOf(team) {
+  try {
+    const res = await fetch(`data/t/${team.key.replace(/\//g, "-")}.json`, { cache: "no-cache" });
+    if (res.status === 404) return { ok: true, upcoming: false };
+    if (!res.ok) return { ok: false };
+    const j = await res.json();
+    return { ok: true, upcoming: upcomingOf((j.m || []).filter((m) => !isNaN(parseDt(m.s)))).length > 0 };
+  } catch { return { ok: false }; }
+}
+
+// Naar welk team moet `oldKey` ({ naam, club }) verhuizen? Alleen als alles klopt: precies één team met dezelfde naam, club en type dat komende
+// wedstrijden heeft (en alle kandidaten konden geladen worden), en bij een groep: er is bij het doel nog geen groep en het groepsdocument noemt
+// hetzelfde team. Bij twijfel doen we niets. { target } of { uncertain: true } (iets kon niet geladen worden) of {}.
+async function resolveMove(oldKey, was) {
+  if (state.noAdopt[oldKey]) return {};
+  const cands = candidatesFor(teamList, { naam: was.n, club: was.c, type: keyType(oldKey) }, oldKey);
+  if (!cands.length || cands.length > 5) return {};
+  const programs = new Map(await Promise.all(cands.map(async (t) => [t.key, await programOf(t)])));
+  const pick = pickTarget(cands, programs);
+  if (!pick.target) return pick;
+  const code = state.groups[oldKey];
+  if (code && shared.enabled) {
+    if (state.groups[pick.target.key]) return {}; // het doel heeft hier al een groep: niets doen
+    let info;
+    try { info = await shared.groupInfo(code); } catch { return { uncertain: true }; }
+    if (!groupConfirms(info, pick.target)) return {};
+  }
+  return pick;
+}
+
+// Sleutels die in migrateMissing niet te beoordelen waren (iets kon niet geladen worden): render() schrapt die favoriet dan niet.
+const uncertainKeys = new Set();
+
+// Is de sleutel van een favoriet of groep uit de teamlijst verdwenen? Zoek het team op naam en club (lokaal bewaard, anders uit het groepsdocument).
 async function migrateMissing() {
   for (const old of [...new Set([...state.favs, ...(state.active ? [state.active] : []), ...Object.keys(state.groups)])]) {
     if (teamIndex.has(old)) continue;
     let was = state.names[old];
     if (!was && state.groups[old] && shared.enabled) { // naam niet bewaard op dit toestel: de groep weet het
-      const info = await shared.groupInfo(state.groups[old]).catch(() => null);
-      if (info?.naam) was = { n: info.naam, c: info.club || "" };
+      try {
+        const info = await shared.groupInfo(state.groups[old]);
+        if (info?.naam) was = { n: info.naam, c: info.club || "" };
+      } catch { uncertainKeys.add(old); continue; }
     }
     if (!was) continue;
-    let cands = teamList.filter((t) => t.naam === was.n && t.club === was.c);
-    if (cands.length > 1 && cands.length <= 5) cands = await withProgram(cands);
-    if (cands.length !== 1) continue;
-    moveTeam(old, cands[0].key);
-    toast(`${cands[0].naam} heeft een nieuwe code bij Nevobo. Je favoriet${state.groups[cands[0].key] ? " en je groep zijn" : " is"} meeverhuisd.`);
+    const pick = await resolveMove(old, was);
+    if (pick.uncertain) uncertainKeys.add(old);
+    if (!pick.target) continue;
+    movedToast(old, pick.target.key, moveTeam(old, pick.target.key));
   }
 }
 
-// Van deze teams alleen die met komende wedstrijden in het programma.
-async function withProgram(teams) {
-  const lists = await Promise.all(teams.map((t) => fetch(`data/t/${t.key.replace(/\//g, "-")}.json`, { cache: "no-cache" }).then((r) => (r.ok ? r.json() : null)).catch(() => null)));
-  return teams.filter((_, i) => lists[i] && upcomingOf((lists[i].m || []).filter((m) => !isNaN(parseDt(m.s)))).length);
-}
-
-// Heeft dit team geen komende wedstrijden, maar bestaat er een team met dezelfde naam en club dat die wel heeft? Dan hing je favoriet
-// aan een oude, lege sleutel (zoals bij Bernisse HS 2): verhuis naar die. Maar bij precies één kandidaat; anders laten we het zoals het is.
+// Heeft dit team (dat geladen is en geen komende wedstrijden heeft) een dubbelganger met dezelfde naam, club en type die die wel heeft?
+// Dan hing je favoriet aan een oude, lege sleutel (zoals bij Bernisse HS 2). Alleen het actieve team; zie resolveMove voor de voorwaarden.
 async function adoptSibling(key) {
   const me = teamIndex.get(key);
-  if (!me || !state.favs.includes(key)) return;
-  const sibs = teamList.filter((t) => t.key !== key && t.naam === me.naam && t.club === me.club);
-  if (!sibs.length || sibs.length > 5) return;
-  const live = await withProgram(sibs);
-  if (live.length !== 1 || state.active !== key) return;
-  moveTeam(key, live[0].key);
-  toast(`${me.naam} heeft een nieuwe code bij Nevobo. Je favoriet${state.groups[live[0].key] ? " en je groep zijn" : " is"} meeverhuisd.`);
+  if (!me || !state.favs.includes(key) || state.active !== key) return;
+  const pick = await resolveMove(key, { n: me.naam, c: me.club });
+  if (!pick.target || state.active !== key) return;
+  movedToast(key, pick.target.key, moveTeam(key, pick.target.key));
   render();
 }
 
 function selectTeam(key, makeFav = true) {
+  if (state.moved[key]) state.noAdopt[key] = true; // zelf gekozen, terwijl we het naar een nieuwe sleutel verhuisd hadden: niet steeds opnieuw verhuizen
   state.active = key;
   state.club = null;
   state.searching = false;
@@ -1310,13 +1349,31 @@ function selectTeam(key, makeFav = true) {
   offerPendingJoin();
 }
 
+// Een teamlijst met minder teams dan dit beschouwen we als onvolledig (mislukte of afgekapte download): dan schrappen we niets.
+const MIN_TEAMS = 500;
+
+// Het team staat niet in de (mogelijk onvolledige) teamlijst en we kunnen niet zeker weten of het echt weg is: niets gewist, wel een uitleg.
+function renderMissing(old) {
+  const name = state.names[old]?.n || old, code = state.groups[old];
+  view.innerHTML = `<section class="card">
+    <h2>Team niet gevonden</h2>
+    <p class="muted">${esc(name)} staat nu niet in de teamlijst, of de controle lukte niet. Je favoriet${code ? ` en je groep (${esc(showCode(code))})` : ""} zijn niet gewist.</p>
+    <div class="row"><button class="primary" id="missing-retry">Opnieuw proberen</button><button id="missing-search">Zoek een team</button></div>
+  </section>`;
+  $("#missing-retry").addEventListener("click", () => location.reload());
+  $("#missing-search").addEventListener("click", () => { state.searching = true; renderSearch(); });
+}
+
 function render() {
-  if (state.active && !teamIndex.has(state.active)) { // sleutel bestaat niet meer (nieuw seizoen of door Nevobo veranderd)
+  if (state.active && !teamIndex.has(state.active)) { // sleutel bestaat niet in de teamlijst (nieuw seizoen of door Nevobo veranderd)
     const old = state.active;
+    // Alleen schrappen als de lijst betrouwbaar is en migrateMissing de sleutel kon beoordelen. Anders blijven favoriet en groep staan.
+    if (teamList.length < MIN_TEAMS || uncertainKeys.has(old)) return renderMissing(old);
     state.favs = state.favs.filter((k) => k !== old);
     state.active = state.favs[0] || null;
     save();
-    toast(`${state.names[old] ? state.names[old].n : "Je team"} staat niet meer in de teamlijst. Zoek het team opnieuw${state.groups[old] ? "; je groep blijft bewaard en kun je met de code weer koppelen" : ""}.`);
+    const code = state.groups[old];
+    toast(`${state.names[old] ? state.names[old].n : "Je team"} staat niet meer in de teamlijst. Zoek het team opnieuw${code ? `; je groepscode ${showCode(code)} blijft bewaard (plak hem op het zoekscherm)` : ""}.`);
   }
   if (state.searching || !state.active) return renderSearch();
   if (state.club) return renderClub();

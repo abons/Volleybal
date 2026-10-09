@@ -180,7 +180,13 @@ De Nevobo-API zelf is niet vanuit elke omgeving bereikbaar; een run in GitHub Ac
 
 - Alleen komende wedstrijden zitten in het programma; gespeelde staan onder Uitslagen.
 - Poules waarin nog niets gespeeld is, krijgen geen stand.
-- Een favoriet van een vorig seizoen verdwijnt als dat team niet meer bestaat; kies dan opnieuw. Verandert Nevobo alleen de teamsleutel (zelfde naam en club), dan verhuizen favoriet en groep vanzelf naar de nieuwe sleutel, mits de app de naam van het team al had bewaard (`names` in de opslag) of het oude team leeg is en precies één team met dezelfde naam komende wedstrijden heeft.
+- Een favoriet van een vorig seizoen verdwijnt als dat team niet meer bestaat; kies dan opnieuw. Verandert Nevobo alleen de teamsleutel
+  (zelfde naam, club en type), dan verhuizen favoriet en groep vanzelf naar de nieuwe sleutel, maar alleen als alles klopt: precies één
+  team met die naam, club en type heeft komende wedstrijden, alle kandidaten konden geladen worden, en bij een groep heeft het doel nog
+  geen groep en noemt het groepsdocument hetzelfde team (`naam` en `club`). Bij twijfel gebeurt er niets en wordt er niets geschrapt: bij
+  een onvolledige teamlijst (minder dan 500 teams) of een controle die niet lukte, blijft de favoriet staan met de melding *Team niet
+  gevonden*. De oude sleutel staat daarna in `moved`; kies je zelf het oude team opnieuw, dan staat `noAdopt` en verhuist het niet meer.
+  Het is niet bewezen dat dit nodig is: de oorzaak van het verdwenen programma bij Bernisse HS 2 is nooit vastgesteld.
 - Bij een nieuwe versie van de app herlaadt de pagina één keer; een ingetypte zoekterm of geopende tab gaat daarbij verloren.
 - Het zoekveld krijgt bij het openen van het zoekscherm altijd focus (op mobiel klapt dan het toetsenbord open).
 - De cache `data-v1` in de service worker wordt nooit opgeschoond.
