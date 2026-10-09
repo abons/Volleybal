@@ -78,11 +78,13 @@ export const normName = (s) => String(s ?? "").toLowerCase().normalize("NFD").re
 export const keyType = (key) => String(key ?? "").split("/")[1] || "";
 
 // Teams uit de lijst die in aanmerking komen als nieuwe sleutel voor `from` ({ naam, club, type }): dezelfde naam en club (genormaliseerd),
-// hetzelfde type, en niet de sleutel zelf. teams: [{ key, naam, club }].
+// hetzelfde type, en niet de sleutel zelf. Is de plaats van beide bekend, dan moet die ook gelijk zijn: twee verschillende clubs kunnen
+// dezelfde naam hebben. teams: [{ key, naam, club, plaats? }].
 export function candidatesFor(teams, from, fromKey) {
-  const n = normName(from?.naam), c = normName(from?.club);
+  const n = normName(from?.naam), c = normName(from?.club), p = normName(from?.plaats);
   if (!n) return [];
-  return (teams || []).filter((t) => t.key !== fromKey && normName(t.naam) === n && normName(t.club) === c && keyType(t.key) === from.type);
+  return (teams || []).filter((t) => t.key !== fromKey && normName(t.naam) === n && normName(t.club) === c && keyType(t.key) === from.type
+    && !(p && normName(t.plaats) && normName(t.plaats) !== p));
 }
 
 // Welke kandidaat is het nieuwe team? programs: Map(sleutel -> { ok, upcoming }): ok = het programma is geladen (een mislukte

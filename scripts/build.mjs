@@ -187,7 +187,7 @@ async function fetchData() {
       rawEmpty++;
       if (shown++ < 10) console.log(`  leeg antwoord: ${key} ${ics === null ? "404" : `200, ${ics.length} tekens: ${JSON.stringify(ics.slice(0, 80))}`}${d.kept ? " (vorige versie behouden)" : ""}`);
     }
-    if (prev?.m?.some((x) => x.s >= nowStamp) && !d.m.some((x) => x.s >= nowStamp)) lost++; // vorige run wel komende wedstrijden, nu niet (na het vangnet)
+    if (Array.isArray(prev?.m) && prev.m.some((x) => x.s >= nowStamp) && !d.m.some((x) => x.s >= nowStamp)) lost++; // vorige run wel komende wedstrijden, nu niet (na het vangnet)
     if (d.kept) kept++;
     if (d.expired) expired++;
     if (!d.m.length) empty++;

@@ -44,7 +44,7 @@ function rememberNames() {
   let dirty = false;
   for (const k of new Set([...state.favs, ...Object.keys(state.groups)])) {
     const t = teamIndex.get(k);
-    if (t && (state.names[k]?.n !== t.naam || state.names[k]?.c !== t.club)) { state.names[k] = { n: t.naam, c: t.club }; dirty = true; }
+    if (t && (state.names[k]?.n !== t.naam || state.names[k]?.c !== t.club || state.names[k]?.p !== t.plaats)) { state.names[k] = { n: t.naam, c: t.club, p: t.plaats }; dirty = true; }
   }
   if (dirty) save();
 }
@@ -365,7 +365,7 @@ function renderSearch() {
   q.addEventListener("input", () => { state.query = q.value; updateResults(); });
   $("#results").addEventListener("click", (e) => {
     const b = e.target.closest("button[data-key]");
-    if (b) selectTeam(b.dataset.key);
+    if (b) selectTeam(b.dataset.key, true, true);
   });
   $("#back")?.addEventListener("click", () => { pendingCode = pendingName = pendingId = ""; state.searching = false; render(); $("#change")?.focus(); });
   updateResults();
@@ -1284,7 +1284,7 @@ async function programOf(team) {
 // hetzelfde team. Bij twijfel doen we niets. { target } of { uncertain: true } (iets kon niet geladen worden) of {}.
 async function resolveMove(oldKey, was) {
   if (state.noAdopt[oldKey]) return {};
-  const cands = candidatesFor(teamList, { naam: was.n, club: was.c, type: keyType(oldKey) }, oldKey);
+  const cands = candidatesFor(teamList, { naam: was.n, club: was.c, plaats: was.p, type: keyType(oldKey) }, oldKey);
   if (!cands.length || cands.length > 5) return {};
   const programs = new Map(await Promise.all(cands.map(async (t) => [t.key, await programOf(t)])));
   const pick = pickTarget(cands, programs);
@@ -1295,7 +1295,7 @@ async function resolveMove(oldKey, was) {
     if (state.groups[pick.target.key]) return {}; // het doel heeft hier al een groep: niets doen
     let info;
     try { info = await shared.groupInfo(code); } catch { return { uncertain: true }; }
-    if (!groupConfirms(info, pick.target)) return {};
+    if (!groupConfirms(info, pick.target) || state.groups[oldKey] !== code || state.noAdopt[oldKey]) return {}; // ook: intussen niet van groep gewisseld
   }
   return pick;
 }
@@ -1305,6 +1305,7 @@ const uncertainKeys = new Set();
 
 // Is de sleutel van een favoriet of groep uit de teamlijst verdwenen? Zoek het team op naam en club (lokaal bewaard, anders uit het groepsdocument).
 async function migrateMissing() {
+  if (teamList.length < MIN_TEAMS) return; // een onvolledige lijst kan een tweede kandidaat missen: dan niet verhuizen
   for (const old of [...new Set([...state.favs, ...(state.active ? [state.active] : []), ...Object.keys(state.groups)])]) {
     if (teamIndex.has(old)) continue;
     let was = state.names[old];
@@ -1327,14 +1328,14 @@ async function migrateMissing() {
 async function adoptSibling(key) {
   const me = teamIndex.get(key);
   if (!me || !state.favs.includes(key) || state.active !== key) return;
-  const pick = await resolveMove(key, { n: me.naam, c: me.club });
+  const pick = await resolveMove(key, { n: me.naam, c: me.club, p: me.plaats });
   if (!pick.target || state.active !== key || !state.favs.includes(key)) return; // intussen een ander team gekozen of de ster weggehaald
   movedToast(key, pick.target.key, moveTeam(key, pick.target.key));
   render();
 }
 
-function selectTeam(key, makeFav = true) {
-  if (state.moved[key]) state.noAdopt[key] = true; // zelf gekozen, terwijl we het naar een nieuwe sleutel verhuisd hadden: niet steeds opnieuw verhuizen
+function selectTeam(key, makeFav = true, explicit = false) {
+  if (explicit && state.moved[key]) state.noAdopt[key] = true; // zelf gezocht en gekozen, terwijl we het naar een nieuwe sleutel verhuisd hadden: niet steeds opnieuw verhuizen (niet bij een link)
   state.active = key;
   state.club = null;
   state.searching = false;
@@ -1356,11 +1357,13 @@ const MIN_TEAMS = 500;
 // Het team staat niet in de (mogelijk onvolledige) teamlijst en we kunnen niet zeker weten of het echt weg is: niets gewist, wel een uitleg.
 function renderMissing(old) {
   const name = state.names[old]?.n || old, code = state.groups[old];
+  const others = state.favs.filter((k) => k !== old && teamIndex.has(k)); // je andere favorieten blijven bereikbaar
   view.innerHTML = `<section class="card">
     <h2>Team niet gevonden</h2>
     <p class="muted">${esc(name)} staat nu niet in de teamlijst, of de controle lukte niet. Je favoriet${code ? ` en je groep (${esc(showCode(code))})` : ""} zijn niet gewist.</p>
     <div class="row"><button class="primary" id="missing-retry">Opnieuw proberen</button><button id="missing-search">Zoek een team</button></div>
-  </section>`;
+  </section>${others.length ? `<div class="chips" role="group" aria-label="Mijn andere teams">${others.map((k) => `<button class="chip" data-switch="${esc(k)}">${esc(teamIndex.get(k)?.naam || k)}</button>`).join("")}</div>` : ""}`;
+  view.querySelectorAll("[data-switch]").forEach((b) => b.addEventListener("click", () => selectTeam(b.dataset.switch, false)));
   $("#missing-retry").addEventListener("click", () => location.reload());
   $("#missing-search").addEventListener("click", () => { state.searching = true; renderSearch(); });
 }

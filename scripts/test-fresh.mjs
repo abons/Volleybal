@@ -160,3 +160,14 @@ test("groupConfirms: het groepsdocument moet hetzelfde team noemen", () => {
   assert.equal(groupConfirms({}, to), false); // groep zonder teamnaam: niets bevestigd
   assert.equal(groupConfirms(null, to), false);
 });
+
+test("candidatesFor: is de plaats van beide bekend, dan moet die gelijk zijn (twee clubs kunnen dezelfde naam hebben)", () => {
+  const teams = [
+    { key: "a/heren/2", naam: "Bernisse HS 2", club: "Bernisse", plaats: "Heenvliet" },
+    { key: "b/heren/2", naam: "Bernisse HS 2", club: "Bernisse", plaats: "Elders" },
+    { key: "c/heren/2", naam: "Bernisse HS 2", club: "Bernisse" }, // plaats onbekend: telt mee
+  ];
+  const from = { naam: "Bernisse HS 2", club: "Bernisse", type: "heren", plaats: "heenvliet" };
+  assert.deepEqual(candidatesFor(teams, from, "old/heren/2").map((t) => t.key), ["a/heren/2", "c/heren/2"]);
+  assert.deepEqual(candidatesFor(teams, { ...from, plaats: undefined }, "old/heren/2").map((t) => t.key), ["a/heren/2", "b/heren/2", "c/heren/2"]);
+});
