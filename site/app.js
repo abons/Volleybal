@@ -1290,7 +1290,8 @@ async function resolveMove(oldKey, was) {
   const pick = pickTarget(cands, programs);
   if (!pick.target) return pick;
   const code = state.groups[oldKey];
-  if (code && shared.enabled) {
+  if (code) {
+    if (!shared.enabled) return {}; // zonder Firebase kunnen we de groep niet bevestigen: niets doen
     if (state.groups[pick.target.key]) return {}; // het doel heeft hier al een groep: niets doen
     let info;
     try { info = await shared.groupInfo(code); } catch { return { uncertain: true }; }
@@ -1327,7 +1328,7 @@ async function adoptSibling(key) {
   const me = teamIndex.get(key);
   if (!me || !state.favs.includes(key) || state.active !== key) return;
   const pick = await resolveMove(key, { n: me.naam, c: me.club });
-  if (!pick.target || state.active !== key) return;
+  if (!pick.target || state.active !== key || !state.favs.includes(key)) return; // intussen een ander team gekozen of de ster weggehaald
   movedToast(key, pick.target.key, moveTeam(key, pick.target.key));
   render();
 }

@@ -169,7 +169,7 @@ async function fetchData() {
     const [code, type, nr] = key.split("/");
     const file = `${DATA}/t.new/${fileFor(key)}`;
     const old = `${DATA}/t/${fileFor(key)}`; // vorige versie, als terugval
-    const prev = existsSync(old) ? await readFile(old, "utf8").then((t) => JSON.parse(t), () => null) : null;
+    const prev = existsSync(old) ? await readFile(old, "utf8").then(JSON.parse).catch(() => null) : null; // ontbrekend of kapot bestand: geen vorige versie
     let fetched, ics;
     try {
       ics = await get(`/export/team/${code.toUpperCase()}/${type}/${nr}/programma.ics`, "text/calendar");
@@ -206,7 +206,7 @@ async function fetchData() {
   const countWith = async (dir) => {
     if (!existsSync(dir)) return 0;
     let n = 0;
-    for (const f of await readdir(dir)) if (JSON.parse(await readFile(`${dir}/${f}`, "utf8")).m?.length) n++;
+    for (const f of await readdir(dir)) if ((await readFile(`${dir}/${f}`, "utf8").then(JSON.parse).catch(() => null))?.m?.length) n++; // een kapot bestand telt niet mee
     return n;
   };
   const before = LIMIT ? 0 : await countWith(`${DATA}/t`);
