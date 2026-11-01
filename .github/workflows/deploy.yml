@@ -24,7 +24,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 45 # een volledige run duurt ongeveer 8 minuten
+    timeout-minutes: 90 # was 45 (8 min per run); sinds 29-10 is Nevobo vanaf GitHub ~8x trager (programma's ~35 min), runs liepen op 45 min af
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
