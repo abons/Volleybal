@@ -13,3 +13,10 @@
   - ✅ Diagnose bekeken (2026-10-22): builds 21-10 20:28 en 22-10 09:43 UTC: 0 behouden, dus geen team ging van komende wedstrijden naar een leeg antwoord. Lege antwoorden (3122/2939) zijn geldige lege agenda's (155–163 tekens, vooral Volley Stars). Hypothese (a) vervallen.
   - Niet getest: echte Nevobo-data, echte Firebase met meerdere toestellen, en de service worker (bij een fout of traag antwoord geeft die de bewaarde versie terug, ook van een kandidaat in `programOf`). De automatische verhuizing is niet bewezen nodig.
   - Bewust niet gebouwd (door drie reviewers afgeraden of uitgesteld): bevestigingsvraag of "Ongedaan maken" bij het verhuizen, verhuizen van niet-actieve favorieten, een opzoektabel (`state.moved`) voor oude sleutels in uitnodigingslinks (`applyLink`), een melding als de verhuizing bij twijfel niets doet (dan blijft "Geen komende wedstrijden" staan), `no-cache` op `data/p/` (stand) en `teams.json`, opruimen van `state.moved` en `state.noAdopt`.
+
+## Openstaand
+
+- Snelle run voor groepsteams (`QUICK`, `quickData` in `scripts/build.mjs`, `scripts/groups.mjs`, secret `FIREBASE_SA` = service-account `volleybal-build`, rol Cloud Datastore Viewer) draait sinds 2026-11-01; één handmatige run gezien (38 s, 3 groepen, 1 team, 1 groep zonder `team`). Nog niet gezien: een geplande snelle run (`47 7-21/2`), en een snelle run met cache die ouder is dan de laatste volledige.
+- Gebruiker: oude sleutel `dee60278…` van het service-account verwijderen (Keys-pagina) en het JSON-bestand op de telefoon wissen. In gebruik is `6893d547…`.
+- Nevobo is vanaf GitHub sinds 29-10 ~8× trager (programma's 140 s per 1000 teams, was 18 s; lokaal 0,06–0,2 s per verzoek). Oorzaak onbekend (afremmen per IP?). Volledige run nu 51 min, limiet 90.
+- Volledige run sneller: programma's van teams zonder groep minder vaak ophalen (bijv. één keer per dag), zodat hij ruim binnen de 90 min blijft als Nevobo nog trager wordt.

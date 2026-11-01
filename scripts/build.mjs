@@ -291,7 +291,9 @@ async function quickData() {
     if (!prev && !known.has(key)) return;
     const add = got.get(key) || [];
     const ids = new Set(add.map(id));
-    const r = [...(prev?.r || []).filter((x) => !ids.has(id(x))), ...add].sort((x, y) => y.s.localeCompare(x.s));
+    // Een groepsteam: alle poules zijn opgehaald, dus de nieuwe lijst is volledig (zoals in de volledige run). Een tegenstander kan
+    // ook in poules zitten die we niet ophaalden, daar vervangen we alleen dezelfde wedstrijd.
+    const r = (poulesOf.has(key) ? add : [...(prev?.r || []).filter((x) => !ids.has(id(x))), ...add]).sort((x, y) => y.s.localeCompare(x.s));
     const next = { m: prev?.m || [], r, p: prev?.p || [], ...(prev?.z && { z: prev.z }) };
     if (poulesOf.has(key)) {
       let fetched;
@@ -307,7 +309,7 @@ async function quickData() {
       next.m = d.m;
       delete next.z;
       if (d.z) next.z = d.z;
-      if (poulesOf.get(key).length) next.p = poulesOf.get(key).filter((iri) => played.has(iri)).sort((x, y) => Number(isCup(x)) - Number(isCup(y))).map(pouleSlug);
+      next.p = poulesOf.get(key).filter((iri) => played.has(iri)).sort((x, y) => Number(isCup(x)) - Number(isCup(y))).map(pouleSlug);
     }
     await writeFile(file, JSON.stringify(next));
     written++;

@@ -47,5 +47,6 @@ export async function groupTeams() {
     if (team) keys.add(team);
     else withoutTeam++;
   }
+  if (groups >= 5000) console.log("::warning::5000 groepen of meer: de query heeft een limiet van 5000 zonder paginering, teams kunnen ontbreken.");
   return { keys, groups, withoutTeam };
 }

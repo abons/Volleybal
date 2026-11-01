@@ -124,14 +124,14 @@ FORCE=1 LIMIT=50 node scripts/build.mjs   # eerste 50 teams ophalen
 npx serve _site                            # of: python3 -m http.server -d _site
 ```
 
-Zonder `LIMIT` duurt een volledige run ongeveer 8 minuten (sinds eind oktober 2026 ~50: Nevobo antwoordt vanaf GitHub ~8× trager,
+Zonder `LIMIT` duurt een volledige run ongeveer 8 minuten (gemeten 1-11-2026: 51 min; programma's 140 s per 1000 teams tegen 18 s op 28-10, ~8× trager vanaf GitHub;
 de tijdslimiet is 90 minuten). De standen en uitslagen worden altijd volledig opgehaald (twee grote lijsten);
 `LIMIT` beperkt alleen het aantal programma's. Gegevens: [Nevobo](https://www.nevobo.nl).
 
 **Snelle run** (`QUICK=1`, elke twee uur overdag): alleen de teams met een groep. De build leest het veld `team` van alle groepen
 met een service-account (`scripts/groups.mjs`, GitHub-secret `FIREBASE_SA` = de JSON-sleutel, rol "Cloud Datastore Viewer"), en haalt
-per team het programma en per poule de stand en gespeelde wedstrijden op (`?team=`/`?poule=`-filters, een paar seconden). De rest komt
-uit de vorige volledige run (actions-cache). Zonder secret doet een snelle run niets nieuws. Lokaal: `GROUP_TEAMS=ckl8z1i/dames/1`.
+per team het programma en per poule de stand en gespeelde wedstrijden op (`?team=`/`?poule=`-filters; gemeten 1-11-2026 met 1 team: 38 s voor de hele run). De rest komt
+uit de vorige volledige run (actions-cache). Zonder secret doet een snelle run niets nieuws; zonder cache (verlopen) wordt het een volledige run. Lokaal: `GROUP_TEAMS=ckl8z1i/dames/1`.
 Groepen zonder `team`-veld (van voor dat veld bestond) tellen niet mee. ⚠️ GitHub start geplande runs soms uren te laat.
 
 ## Beheer
