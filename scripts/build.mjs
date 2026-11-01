@@ -4,11 +4,13 @@
 //   node scripts/build.mjs            hergebruik _data als die jonger is dan MAX_AGE_H uur
 //   FORCE=1 node scripts/build.mjs    altijd opnieuw ophalen
 //   LIMIT=50 node scripts/build.mjs   alleen de eerste 50 teams (om snel te testen)
+//   QUICK=1 node scripts/build.mjs    alleen de teams met een groep bijwerken (zie quickData), op de bestaande _data
 
 import { mkdir, readFile, writeFile, rm, cp, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { parseIcs } from "./ics.mjs";
 import { decideKeep, stampOf } from "./keep.mjs";
+import { groupTeams } from "./groups.mjs";
 
 const API = "https://api.nevobo.nl";
 const DATA = "_data";
@@ -71,6 +73,20 @@ const pouleSlug = (iri) => iri.replace("/competitie/poules/", "").replace(/\//g,
 const teamKey = (iri) => iri?.replace("/competitie/teams/", "") || null;
 const isCup = (iri) => iri.includes("bekertoernooi");
 
+// Een gespeelde wedstrijd als uitslag in het teambestand, of null als een team of de eindstand ontbreekt.
+function toResult(w, indeling) {
+  const [a, b] = (w.teams || []).map((t) => indeling.get(t));
+  if (!a || !b || !w.eindstand) return null;
+  return {
+    s: w.tijdstip || w.datum,
+    t: [a.naam, b.naam],
+    k: [a.key, b.key],
+    e: w.eindstand,
+    z: (w.setstanden || []).map((x) => [x.puntenA, x.puntenB]),
+    ...(w.poule && isCup(w.poule) && { c: "Beker" }),
+  };
+}
+
 // Standen en uitslagen komen uit twee grote lijsten; die lezen we één keer en verdelen we over de teams.
 async function fetchCompetition() {
   console.log("Poules ophalen…");
@@ -113,17 +129,9 @@ async function fetchCompetition() {
   for (const w of await collection("/competitie/wedstrijden?status=gespeeld&order%5Bbegintijd%5D=asc")) {
     if (seen.has(w["@id"])) continue;
     seen.add(w["@id"]);
-    const [a, b] = (w.teams || []).map((t) => indeling.get(t));
-    if (!a || !b || !w.eindstand) continue;
-    const r = {
-      s: w.tijdstip || w.datum,
-      t: [a.naam, b.naam],
-      k: [a.key, b.key],
-      e: w.eindstand,
-      z: (w.setstanden || []).map((x) => [x.puntenA, x.puntenB]),
-      ...(w.poule && isCup(w.poule) && { c: "Beker" }),
-    };
-    for (const k of [a.key, b.key]) {
+    const r = toResult(w, indeling);
+    if (!r) continue;
+    for (const k of r.k) {
       if (!results.has(k)) results.set(k, []);
       results.get(k).push(r);
     }
@@ -224,13 +232,98 @@ async function fetchData() {
   await writeFile(`${DATA}/teams.json`, JSON.stringify({ updated: new Date().toISOString(), teams }));
 }
 
+// Snelle run (QUICK=1): alleen de teams met een groep, op de data van de vorige volledige run. Per team het programma, en per poule
+// van dat team de stand en de gespeelde wedstrijden (gefilterd op poule: een paar verzoeken in plaats van de twee grote lijsten).
+// Uitslagen van de tegenstanders in die poules werken we ook bij; hun programma niet. teams.json blijft staan, zodat `updated` de
+// leeftijd van de volledige run blijft.
+async function quickData() {
+  const g = await groupTeams();
+  if (!g) return console.log("Snelle run: geen FIREBASE_SA of GROUP_TEAMS, niets opgehaald.");
+  const known = new Set(JSON.parse(await readFile(`${DATA}/teams.json`, "utf8")).teams.map((t) => t[0]));
+  const keys = [...g.keys].filter((k) => known.has(k));
+  console.log(`Snelle run: ${g.groups} groepen, ${g.keys.size} teams, ${keys.length} bekend bij Nevobo, ${g.withoutTeam} groepen zonder team`);
+
+  const readJson = async (f) => (existsSync(f) ? await readFile(f, "utf8").then(JSON.parse).catch(() => null) : null);
+  const poulesOf = new Map(); // team -> poule-IRI's
+  await pool(keys, async (key) => {
+    poulesOf.set(key, (await collection(`/competitie/pouleindelingen?team=/competitie/teams/${key}`)).map((e) => e.poule).filter(Boolean));
+  });
+
+  const got = new Map(); // team -> uitslagen uit de opgehaalde poules
+  const played = new Set(); // poules met gespeelde wedstrijden
+  let nResults = 0;
+  await pool([...new Set([...poulesOf.values()].flat())], async (iri) => {
+    const indeling = new Map();
+    const list = [];
+    for (const e of await collection(`/competitie/pouleindelingen?poule=${iri}`)) {
+      const key = teamKey(e.team);
+      if (!key) continue;
+      indeling.set(e["@id"], { key, naam: e.omschrijving || "" });
+      list.push([e.positie || 0, key, e.omschrijving || "", e.gespeeld || 0, e.punten || 0, e.setsVoor || 0, e.setsTegen || 0, e.wedstrijdenWinst || 0, e.wedstrijdenVerlies || 0]);
+    }
+    for (const w of await collection(`/competitie/wedstrijden?poule=${iri}&status=gespeeld`)) {
+      const r = toResult(w, indeling);
+      if (!r) continue;
+      nResults++;
+      for (const k of r.k) {
+        if (!got.has(k)) got.set(k, []);
+        got.get(k).push(r);
+      }
+    }
+    if (!list.some((r) => r[3] > 0)) return;
+    played.add(iri);
+    list.sort((x, y) => (x[0] || 99) - (y[0] || 99));
+    const file = `${DATA}/p/${pouleSlug(iri)}.json`;
+    let n = (await readJson(file))?.n;
+    if (n === undefined) {
+      const p = JSON.parse(await get(iri, "application/ld+json"));
+      n = p.omschrijving || p.afkorting || "";
+    }
+    await writeFile(file, JSON.stringify({ n, cup: isCup(iri), r: list }));
+  });
+
+  // Uitslagen samenvoegen: nieuwe vervangen dezelfde wedstrijd (begintijd en teams), de rest blijft (andere poules).
+  const id = (r) => `${r.s}|${r.k.join("|")}`;
+  let failed = 0, written = 0;
+  await pool([...new Set([...got.keys(), ...keys])], async (key) => {
+    const file = `${DATA}/t/${fileFor(key)}`;
+    const prev = await readJson(file);
+    if (!prev && !known.has(key)) return;
+    const add = got.get(key) || [];
+    const ids = new Set(add.map(id));
+    const r = [...(prev?.r || []).filter((x) => !ids.has(id(x))), ...add].sort((x, y) => y.s.localeCompare(x.s));
+    const next = { m: prev?.m || [], r, p: prev?.p || [], ...(prev?.z && { z: prev.z }) };
+    if (poulesOf.has(key)) {
+      let fetched;
+      try {
+        const ics = await get(`/export/team/${key.split("/")[0].toUpperCase()}/${key.split("/").slice(1).join("/")}/programma.ics`, "text/calendar");
+        fetched = ics ? parseIcs(ics) : [];
+      } catch (err) {
+        failed++;
+        console.warn("  mislukt:", err.message);
+        fetched = null;
+      }
+      const d = decideKeep({ fetched, prev, now: Date.now(), maxHours: KEEP_HOURS });
+      next.m = d.m;
+      delete next.z;
+      if (d.z) next.z = d.z;
+      if (poulesOf.get(key).length) next.p = poulesOf.get(key).filter((iri) => played.has(iri)).sort((x, y) => Number(isCup(x)) - Number(isCup(y))).map(pouleSlug);
+    }
+    await writeFile(file, JSON.stringify(next));
+    written++;
+  });
+  runStats = ` · snelle run: ${keys.length} groepsteams, ${played.size} poules, ${nResults} uitslagen, ${written} teambestanden bijgewerkt, ${failed} programma's mislukt`;
+}
+
 async function fresh() {
   if (process.env.FORCE || !existsSync(`${DATA}/teams.json`) || !existsSync(`${DATA}/t`) || !existsSync(`${DATA}/p`)) return false;
   const { updated } = JSON.parse(await readFile(`${DATA}/teams.json`, "utf8"));
   return Date.now() - new Date(updated) < MAX_AGE_H * 3600e3;
 }
 
-if (await fresh()) console.log("Data in _data is nog vers genoeg, ophalen overgeslagen.");
+const hasData = existsSync(`${DATA}/teams.json`) && existsSync(`${DATA}/t`) && existsSync(`${DATA}/p`);
+if (process.env.QUICK && hasData) await quickData();
+else if (await fresh()) console.log("Data in _data is nog vers genoeg, ophalen overgeslagen.");
 else await fetchData();
 
 await rm(OUT, { recursive: true, force: true });

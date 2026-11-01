@@ -5,10 +5,15 @@ on:
     branches: [main]
   schedule:
     - cron: "17 4,16 * * *" # twee keer per dag verse wedstrijddata van Nevobo
+    - cron: "47 7-21/2 * * *" # snelle run: alleen teams met een groep (QUICK), elke twee uur overdag
   workflow_dispatch:
     inputs:
       allow_drop:
         description: "Publiceer ook als er veel minder programma's zijn dan vorige run (seizoenswissel)"
+        type: boolean
+        default: false
+      quick:
+        description: "Snelle run: alleen de teams met een groep bijwerken"
         type: boolean
         default: false
 
@@ -19,7 +24,7 @@ permissions:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false # een snelle run mag een volledige run (~50 min) niet afbreken; hij wacht erop
 
 jobs:
   build:
@@ -44,6 +49,8 @@ jobs:
         env:
           FORCE: ${{ github.event_name != 'push' && '1' || '' }}
           ALLOW_DROP: ${{ github.event.inputs.allow_drop == 'true' && '1' || '' }}
+          QUICK: ${{ (github.event.schedule == '47 7-21/2 * * *' || github.event.inputs.quick == 'true') && '1' || '' }}
+          FIREBASE_SA: ${{ secrets.FIREBASE_SA }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site
