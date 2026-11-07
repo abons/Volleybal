@@ -33,11 +33,12 @@ function programOf(key, ics) {
 // Een nep-wedstrijd die al eerder in het teambestand belandde, telt niet als vorig programma. scripts/restore.json (sleutel -> programma,
 // eenmalig lokaal bij Nevobo opgehaald op 7-11, waar het wel het echte programma gaf) zet het terug; zonder nep in het bestand doet hij niets.
 const RESTORE = existsSync("scripts/restore.json") ? JSON.parse(await readFile("scripts/restore.json", "utf8")) : {};
+// `restore` markeert dat m uit restore.json komt (geteld in `restored` alleen als het ook gepubliceerd wordt; het veld wordt niet weggeschreven).
 let restored = 0;
 async function withoutPlaceholder(prev, key) {
   if (!Array.isArray(prev?.m) || !prev.m.some(isPlaceholder)) return prev;
-  if (Array.isArray(RESTORE[key])) restored++;
-  return { ...prev, m: (RESTORE[key] || prev.m).filter((x) => !isPlaceholder(x)) };
+  const back = Array.isArray(RESTORE[key]);
+  return { ...prev, m: (back ? RESTORE[key] : prev.m).filter((x) => !isPlaceholder(x)), ...(back && { restore: true }) };
 }
 
 async function get(url, accept, tries = 5) {
@@ -208,6 +209,7 @@ async function fetchData() {
     // Antwoordt Nevobo met een leeg programma terwijl we vorige keer nog komende wedstrijden hadden, dan houden we de vorige versie
     // tijdelijk vast (maximaal KEEP_HOURS); daarna publiceren we het lege programma, zodat een verdwenen of verhuisd team zichtbaar wordt.
     const d = decideKeep({ fetched, prev, now: Date.now(), maxHours: KEEP_HOURS });
+    if (fetched === null && prev?.restore) restored++;
     // Diagnose: wat gaf Nevobo bij een leeg antwoord (de eerste 10 teams; geen volledige inhoud, alleen status, lengte en het begin)?
     if (fetched?.length === 0) {
       rawEmpty++;
@@ -220,11 +222,13 @@ async function fetchData() {
     await writeFile(file, JSON.stringify({ m: d.m, r: results.get(key) || [], p: poulesFor(key), ...(d.z && { z: d.z }) }));
     if (++done % 1000 === 0) console.log(`  ${done}/${teams.length}`);
   });
-  console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden, ${kept} leeg antwoord met vorige versie behouden, ${expired} daarvan na ${KEEP_HOURS} uur alsnog leeg gepubliceerd`);
+  console.log(`  klaar: ${done - failed - placeholders} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden, ${kept} leeg antwoord met vorige versie behouden, ${expired} daarvan na ${KEEP_HOURS} uur alsnog leeg gepubliceerd`);
   console.log(`  diagnose: ${rawEmpty} leeg antwoord, ${kept} behouden, ${lost} van 'wel' naar 'geen' komende wedstrijden, ${placeholders} nep-programma's (vorige versie behouden)`);
   // Alleen een waarschuwing in de Actions-log (de build blijft slagen): een plotselinge stijging is meestal een hapering of wijziging bij Nevobo.
   const warnAt = Math.max(20, Math.ceil(teams.length * 0.02));
   if (kept > warnAt || lost > warnAt) console.log(`::warning::Veel teams met een leeg antwoord van Nevobo: ${rawEmpty} leeg, ${kept} behouden, ${lost} van wel naar geen komende wedstrijden (drempel ${warnAt}).`);
+  // Nep-programma's bevriezen het vorige programma zonder tijdslimiet; bij veel tegelijk (of een seizoenswissel) moet iemand kijken.
+  if (placeholders > warnAt) console.log(`::warning::Veel nep-programma's ('Actie vereist') van Nevobo: ${placeholders}, vorige versie behouden (drempel ${warnAt}).`);
   runStats = ` · leeg antwoord ${rawEmpty}, behouden ${kept}, wel→geen ${lost}, nep-programma ${placeholders}, uit oude data teruggezet ${restored}`;
   if (failed > teams.length * 0.05) throw new Error("Te veel mislukte verzoeken, ik publiceer niets nieuws.");
 
@@ -313,6 +317,7 @@ async function quickData() {
     // ook in poules zitten die we niet ophaalden, daar vervangen we alleen dezelfde wedstrijd.
     const r = (poulesOf.has(key) ? add : [...(prev?.r || []).filter((x) => !ids.has(id(x))), ...add]).sort((x, y) => y.s.localeCompare(x.s));
     const next = { m: prev?.m || [], r, p: prev?.p || [], ...(prev?.z && { z: prev.z }) };
+    if (!poulesOf.has(key) && prev?.restore) restored++; // tegenstander: programma niet opgehaald, dus het teruggezette wordt gepubliceerd
     if (poulesOf.has(key)) {
       let fetched;
       try {
@@ -324,6 +329,7 @@ async function quickData() {
         fetched = null;
       }
       const d = decideKeep({ fetched, prev, now: Date.now(), maxHours: KEEP_HOURS });
+      if (fetched === null && prev?.restore) restored++;
       next.m = d.m;
       delete next.z;
       if (d.z) next.z = d.z;
