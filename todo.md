@@ -16,6 +16,8 @@
 
 ## Openstaand
 
+- Nep-programma van Nevobo (2026-11-07, Bernisse HS 2 weer "Geen komende wedstrijden"): vanaf GitHub krijgen ~400 teams per run één event "Actie vereist: voeg een nieuwe wedstrijdagenda toe" (1-9 t/m 31-8) i.p.v. het programma; lokaal hetzelfde verzoek (zelfde URL en User-Agent, 15×) geeft het echte. Steekproef live: 8 van 302 teambestanden. Zat niet in de 20-uursregel, want het is niet leeg. Gebouwd: `isPlaceholder` (`scripts/ics.mjs`), telt als mislukt, vorige versie blijft; logregel `nep-programma:` met de eerste 700 tekens. Nakijken in het log: wat staat er in DESCRIPTION (nieuwe agenda-URL?), en krijgt Bernisse het steeds. Teams die het al in hun bestand hebben, blijven leeg tot Nevobo vanaf GitHub weer echt antwoordt.
+
 - Snelle run voor groepsteams (`QUICK`, `quickData` in `scripts/build.mjs`, `scripts/groups.mjs`, secret `FIREBASE_SA` = service-account `volleybal-build`, rol Cloud Datastore Viewer) draait sinds 2026-11-01; één handmatige run gezien (38 s, 3 groepen, 1 team, 1 groep zonder `team`). Nog niet gezien: een geplande snelle run (`47 7-21/2`), en een snelle run met cache die ouder is dan de laatste volledige.
 - Gebruiker: oude sleutel `dee60278…` van het service-account verwijderen (Keys-pagina) en het JSON-bestand op de telefoon wissen. In gebruik is `6893d547…`.
 - Nevobo is vanaf GitHub sinds 29-10 ~8× trager (programma's 140 s per 1000 teams, was 18 s; lokaal 0,06–0,2 s per verzoek). Oorzaak onbekend (afremmen per IP?). Volledige run nu 51 min, limiet 90.

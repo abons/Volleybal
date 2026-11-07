@@ -31,3 +31,7 @@ export function parseIcs(text) {
     }))
     .sort((a, b) => a.s.localeCompare(b.s));
 }
+
+// Sinds 6-11 geeft Nevobo vanaf GitHub voor ~400 teams per run in plaats van het programma één nep-wedstrijd "Actie vereist: voeg een
+// nieuwe wedstrijdagenda toe" (1-9 t/m 31-8); lokaal krijgt hetzelfde verzoek het echte programma. Geen antwoord, dus als mislukt behandelen.
+export const isPlaceholder = (m) => /^Actie vereist/i.test(m?.t || "");

@@ -8,7 +8,7 @@
 
 import { mkdir, readFile, writeFile, rm, cp, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { parseIcs } from "./ics.mjs";
+import { parseIcs, isPlaceholder } from "./ics.mjs";
 import { decideKeep, stampOf } from "./keep.mjs";
 import { groupTeams } from "./groups.mjs";
 
@@ -21,6 +21,17 @@ const CONCURRENCY = Number(process.env.CONCURRENCY || 8);
 const KEEP_HOURS = Number(process.env.KEEP_HOURS || 20); // zo lang houden we het vorige programma vast bij een leeg antwoord (twee runs van 12 uur)
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Geparst programma, of null bij een nep-programma (zie isPlaceholder): dan blijft de vorige versie staan, zonder tijdslimiet.
+let placeholders = 0;
+function programOf(key, ics) {
+  const m = ics ? parseIcs(ics) : [];
+  if (!m.some(isPlaceholder)) return m;
+  if (placeholders++ < 3) console.log(`  nep-programma: ${key}: ${JSON.stringify(ics.slice(0, 700))}`);
+  return null;
+}
+// Een nep-wedstrijd die al eerder in het teambestand belandde, telt niet als vorig programma.
+const withoutPlaceholder = (prev) => (Array.isArray(prev?.m) && prev.m.some(isPlaceholder) ? { ...prev, m: prev.m.filter((x) => !isPlaceholder(x)) } : prev);
 
 async function get(url, accept, tries = 5) {
   for (let n = 1; ; n++) {
@@ -177,11 +188,11 @@ async function fetchData() {
     const [code, type, nr] = key.split("/");
     const file = `${DATA}/t.new/${fileFor(key)}`;
     const old = `${DATA}/t/${fileFor(key)}`; // vorige versie, als terugval
-    const prev = existsSync(old) ? await readFile(old, "utf8").then(JSON.parse).catch(() => null) : null; // ontbrekend of kapot bestand: geen vorige versie
+    const prev = withoutPlaceholder(existsSync(old) ? await readFile(old, "utf8").then(JSON.parse).catch(() => null) : null); // ontbrekend of kapot bestand: geen vorige versie
     let fetched, ics;
     try {
       ics = await get(`/export/team/${code.toUpperCase()}/${type}/${nr}/programma.ics`, "text/calendar");
-      fetched = ics ? parseIcs(ics) : [];
+      fetched = programOf(key, ics);
     } catch (err) {
       failed++;
       if (failed <= 10) console.warn("  mislukt:", err.message);
@@ -203,11 +214,11 @@ async function fetchData() {
     if (++done % 1000 === 0) console.log(`  ${done}/${teams.length}`);
   });
   console.log(`  klaar: ${done - failed} gelukt, ${failed} mislukt, ${empty} zonder wedstrijden, ${kept} leeg antwoord met vorige versie behouden, ${expired} daarvan na ${KEEP_HOURS} uur alsnog leeg gepubliceerd`);
-  console.log(`  diagnose: ${rawEmpty} leeg antwoord, ${kept} behouden, ${lost} van 'wel' naar 'geen' komende wedstrijden`);
+  console.log(`  diagnose: ${rawEmpty} leeg antwoord, ${kept} behouden, ${lost} van 'wel' naar 'geen' komende wedstrijden, ${placeholders} nep-programma's (vorige versie behouden)`);
   // Alleen een waarschuwing in de Actions-log (de build blijft slagen): een plotselinge stijging is meestal een hapering of wijziging bij Nevobo.
   const warnAt = Math.max(20, Math.ceil(teams.length * 0.02));
   if (kept > warnAt || lost > warnAt) console.log(`::warning::Veel teams met een leeg antwoord van Nevobo: ${rawEmpty} leeg, ${kept} behouden, ${lost} van wel naar geen komende wedstrijden (drempel ${warnAt}).`);
-  runStats = ` · leeg antwoord ${rawEmpty}, behouden ${kept}, wel→geen ${lost}`;
+  runStats = ` · leeg antwoord ${rawEmpty}, behouden ${kept}, wel→geen ${lost}, nep-programma ${placeholders}`;
   if (failed > teams.length * 0.05) throw new Error("Te veel mislukte verzoeken, ik publiceer niets nieuws.");
 
   // Vergelijk met de vorige run: een export die plotseling massaal leeg is, publiceren we niet.
@@ -287,7 +298,7 @@ async function quickData() {
   let failed = 0, written = 0;
   await pool([...new Set([...got.keys(), ...keys])], async (key) => {
     const file = `${DATA}/t/${fileFor(key)}`;
-    const prev = await readJson(file);
+    const prev = withoutPlaceholder(await readJson(file));
     if (!prev && !known.has(key)) return;
     const add = got.get(key) || [];
     const ids = new Set(add.map(id));
@@ -299,7 +310,7 @@ async function quickData() {
       let fetched;
       try {
         const ics = await get(`/export/team/${key.split("/")[0].toUpperCase()}/${key.split("/").slice(1).join("/")}/programma.ics`, "text/calendar");
-        fetched = ics ? parseIcs(ics) : [];
+        fetched = programOf(key, ics);
       } catch (err) {
         failed++;
         console.warn("  mislukt:", err.message);
@@ -314,7 +325,7 @@ async function quickData() {
     await writeFile(file, JSON.stringify(next));
     written++;
   });
-  runStats = ` · snelle run: ${keys.length} groepsteams, ${played.size} poules, ${nResults} uitslagen, ${written} teambestanden bijgewerkt, ${failed} programma's mislukt`;
+  runStats = ` · snelle run: ${keys.length} groepsteams, ${played.size} poules, ${nResults} uitslagen, ${written} teambestanden bijgewerkt, ${failed} programma's mislukt, ${placeholders} nep-programma's`;
 }
 
 async function fresh() {
