@@ -41,4 +41,5 @@ export const isPlaceholder = (m) => /^Actie vereist/i.test(m?.t || "");
 const msOf = (s) => Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(9, 11), +s.slice(11, 13));
 const isLong = (m) => !!m?.e && msOf(m.e) - msOf(m.s) > 30 * 24 * 3600e3;
 export const isPlaceholderProgram = (ms) => Array.isArray(ms) && (ms.some(isPlaceholder) || (ms.length === 1 && isLong(ms[0])));
-export const stripPlaceholders = (ms) => ms.filter((m) => !isPlaceholder(m) && !isLong(m));
+// Zelfde regel als hierboven: een lang event naast echte wedstrijden blijft staan.
+export const stripPlaceholders = (ms) => (ms.length === 1 && isLong(ms[0]) ? [] : ms.filter((m) => !isPlaceholder(m)));

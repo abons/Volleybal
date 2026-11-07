@@ -22,7 +22,8 @@ const KEEP_HOURS = Number(process.env.KEEP_HOURS || 20); // zo lang houden we he
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Geparst programma, of null bij een nep-programma (zie isPlaceholder): dan blijft de vorige versie staan, zonder tijdslimiet.
+// Geparst programma, of null bij een nep-programma (zie isPlaceholderProgram): dan blijft de vorige versie staan, zonder tijdslimiet.
+// Telt niet mee voor de 5%-grens van mislukte verzoeken (de vorige versie is bruikbaar); daarvoor is de ::warning:: bij veel nep.
 let placeholders = 0;
 function programOf(key, ics) {
   const m = ics ? parseIcs(ics) : [];
@@ -209,7 +210,7 @@ async function fetchData() {
     // Antwoordt Nevobo met een leeg programma terwijl we vorige keer nog komende wedstrijden hadden, dan houden we de vorige versie
     // tijdelijk vast (maximaal KEEP_HOURS); daarna publiceren we het lege programma, zodat een verdwenen of verhuisd team zichtbaar wordt.
     const d = decideKeep({ fetched, prev, now: Date.now(), maxHours: KEEP_HOURS });
-    if (fetched === null && prev?.restore) restored++;
+    if (prev?.restore && d.m === prev.m) restored++; // vorige versie gepubliceerd (mislukt, nep of leeg en vastgehouden)
     // Diagnose: wat gaf Nevobo bij een leeg antwoord (de eerste 10 teams; geen volledige inhoud, alleen status, lengte en het begin)?
     if (fetched?.length === 0) {
       rawEmpty++;
@@ -329,7 +330,7 @@ async function quickData() {
         fetched = null;
       }
       const d = decideKeep({ fetched, prev, now: Date.now(), maxHours: KEEP_HOURS });
-      if (fetched === null && prev?.restore) restored++;
+      if (prev?.restore && d.m === prev.m) restored++;
       next.m = d.m;
       delete next.z;
       if (d.z) next.z = d.z;

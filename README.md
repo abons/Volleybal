@@ -155,6 +155,10 @@ Groepen zonder `team`-veld (van voor dat veld bestond) tellen niet mee. ⚠️ G
   De build logt per run een regel `diagnose:` (aantal lege antwoorden, behouden teams en teams die van wel naar geen komende
   wedstrijden gingen), voor de eerste tien lege antwoorden de status en het begin van de respons, en een `::warning::` als dat sterk
   stijgt. Die waarschuwing laat de build niet falen; de cijfers staan ook achter `SAMENVATTING …`.
+- **Nep-programma van Nevobo** (sinds november 2026): soms komt er i.p.v. het programma één event "Actie vereist: voeg een nieuwe
+  wedstrijdagenda toe" dat het hele seizoen duurt. De build herkent dat aan die tekst of aan "precies één event van meer dan 30
+  dagen" (`isPlaceholderProgram` in `scripts/ics.mjs`), behandelt het als een mislukt verzoek en laat de vorige versie staan,
+  zonder tijdslimiet. Het telt niet mee voor de grens van 5% mislukte verzoeken. Logregel `nep-programma:`, en een `::warning::` bij meer dan 2% van de teams.
 - **Cache**: `_data/` (niet in git) wordt tussen runs bewaard met `actions/cache`; verwijder de cache onder Actions → Caches om
   alles opnieuw op te halen.
 - **Nieuwe versie van de app**: telefoons pakken die vanzelf op; de pagina herlaadt dan één keer. Een geopende zoekterm of tab
@@ -170,7 +174,9 @@ Voor wie hier later aan verder werkt (alles is in oktober 2026 met echte respons
   pagina's. Het filter `naam` op `/competitie/teams` werkt niet; `itemsPerPage` ook niet. Er zijn geen CORS-headers.
 - Teams: `/competitie/teams` (13,7k). De sleutel is `/competitie/teams/<clubcode>/<dames|heren|…>/<nr>`.
 - Programma per team: `/export/team/<CLUBCODE>/<soort>/<nr>/programma.ics` (hoofdletters in de clubcode). Bevat alleen **komende**
-  wedstrijden, met UID, UTC-tijden, adres en GEO. `resultaten.rss` bestaat ook per team.
+  wedstrijden, met UID, UTC-tijden, adres en GEO. `resultaten.rss` bestaat ook per team. Sinds november 2026 komt er af en toe een
+  nep-agenda ("Actie vereist", zie hierboven), per run bij andere teams (7-11: 448 en daarna 269 van ~14k); hetzelfde verzoek vanaf
+  een pc gaf toen meestal wel het echte programma.
 - Stand: `/competitie/pouleindelingen` (zonder filter: alle teams in alle poules; met `?poule=` of `?team=` gefilterd).
 - Uitslagen: `/competitie/wedstrijden?status=gespeeld`. `teams` is `[thuis, uit]` als pouleindeling-IRI's, `eindstand` en
   `setstanden` volgen die volgorde. Er zijn ook filters `team`, `poule`, `vereniging`, `datum[before|after]`, `order[begintijd]`.

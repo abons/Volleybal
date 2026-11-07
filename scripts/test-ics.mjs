@@ -42,4 +42,7 @@ test("stripPlaceholders: haalt nep-events weg, laat wedstrijden staan", () => {
   const real = match("20261107T154500Z", "20261107T174500Z");
   assert.deepEqual(stripPlaceholders([match("20260901T000000", "20270831T000000", "Actie vereist: x"), real]), [real]);
   assert.deepEqual(stripPlaceholders([match("20260901T000000", "20270831T000000", "Iets anders")]), []);
+  // Lang event zonder nep-tekst naast een wedstrijd: blijft staan, net als in isPlaceholderProgram.
+  const season = match("20260901T000000", "20270831T000000", "Seizoen");
+  assert.deepEqual(stripPlaceholders([match("20260901T000000", "20270831T000000", "Actie vereist: x"), season, real]), [season, real]);
 });
