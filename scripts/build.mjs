@@ -30,8 +30,15 @@ function programOf(key, ics) {
   if (placeholders++ < 3) console.log(`  nep-programma: ${key}: ${JSON.stringify(ics.slice(0, 700))}`);
   return null;
 }
-// Een nep-wedstrijd die al eerder in het teambestand belandde, telt niet als vorig programma.
-const withoutPlaceholder = (prev) => (Array.isArray(prev?.m) && prev.m.some(isPlaceholder) ? { ...prev, m: prev.m.filter((x) => !isPlaceholder(x)) } : prev);
+// Een nep-wedstrijd die al eerder in het teambestand belandde, telt niet als vorig programma. scripts/restore.json (sleutel -> programma,
+// eenmalig lokaal bij Nevobo opgehaald op 7-11, waar het wel het echte programma gaf) zet het terug; zonder nep in het bestand doet hij niets.
+const RESTORE = existsSync("scripts/restore.json") ? JSON.parse(await readFile("scripts/restore.json", "utf8")) : {};
+let restored = 0;
+async function withoutPlaceholder(prev, key) {
+  if (!Array.isArray(prev?.m) || !prev.m.some(isPlaceholder)) return prev;
+  if (Array.isArray(RESTORE[key])) restored++;
+  return { ...prev, m: (RESTORE[key] || prev.m).filter((x) => !isPlaceholder(x)) };
+}
 
 async function get(url, accept, tries = 5) {
   for (let n = 1; ; n++) {
@@ -188,7 +195,7 @@ async function fetchData() {
     const [code, type, nr] = key.split("/");
     const file = `${DATA}/t.new/${fileFor(key)}`;
     const old = `${DATA}/t/${fileFor(key)}`; // vorige versie, als terugval
-    const prev = withoutPlaceholder(existsSync(old) ? await readFile(old, "utf8").then(JSON.parse).catch(() => null) : null); // ontbrekend of kapot bestand: geen vorige versie
+    const prev = await withoutPlaceholder(existsSync(old) ? await readFile(old, "utf8").then(JSON.parse).catch(() => null) : null, key); // ontbrekend of kapot bestand: geen vorige versie
     let fetched, ics;
     try {
       ics = await get(`/export/team/${code.toUpperCase()}/${type}/${nr}/programma.ics`, "text/calendar");
@@ -218,7 +225,7 @@ async function fetchData() {
   // Alleen een waarschuwing in de Actions-log (de build blijft slagen): een plotselinge stijging is meestal een hapering of wijziging bij Nevobo.
   const warnAt = Math.max(20, Math.ceil(teams.length * 0.02));
   if (kept > warnAt || lost > warnAt) console.log(`::warning::Veel teams met een leeg antwoord van Nevobo: ${rawEmpty} leeg, ${kept} behouden, ${lost} van wel naar geen komende wedstrijden (drempel ${warnAt}).`);
-  runStats = ` · leeg antwoord ${rawEmpty}, behouden ${kept}, wel→geen ${lost}, nep-programma ${placeholders}`;
+  runStats = ` · leeg antwoord ${rawEmpty}, behouden ${kept}, wel→geen ${lost}, nep-programma ${placeholders}, uit oude data teruggezet ${restored}`;
   if (failed > teams.length * 0.05) throw new Error("Te veel mislukte verzoeken, ik publiceer niets nieuws.");
 
   // Vergelijk met de vorige run: een export die plotseling massaal leeg is, publiceren we niet.
@@ -298,7 +305,7 @@ async function quickData() {
   let failed = 0, written = 0;
   await pool([...new Set([...got.keys(), ...keys])], async (key) => {
     const file = `${DATA}/t/${fileFor(key)}`;
-    const prev = withoutPlaceholder(await readJson(file));
+    const prev = await withoutPlaceholder(await readJson(file), key);
     if (!prev && !known.has(key)) return;
     const add = got.get(key) || [];
     const ids = new Set(add.map(id));
@@ -325,7 +332,7 @@ async function quickData() {
     await writeFile(file, JSON.stringify(next));
     written++;
   });
-  runStats = ` · snelle run: ${keys.length} groepsteams, ${played.size} poules, ${nResults} uitslagen, ${written} teambestanden bijgewerkt, ${failed} programma's mislukt, ${placeholders} nep-programma's`;
+  runStats = ` · snelle run: ${keys.length} groepsteams, ${played.size} poules, ${nResults} uitslagen, ${written} teambestanden bijgewerkt, ${failed} programma's mislukt, ${placeholders} nep-programma's, ${restored} uit oude data teruggezet`;
 }
 
 async function fresh() {
