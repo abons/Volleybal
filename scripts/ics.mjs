@@ -35,3 +35,10 @@ export function parseIcs(text) {
 // Sinds 6-11 geeft Nevobo vanaf GitHub voor ~400 teams per run in plaats van het programma één nep-wedstrijd "Actie vereist: voeg een
 // nieuwe wedstrijdagenda toe" (1-9 t/m 31-8); lokaal krijgt hetzelfde verzoek het echte programma. Geen antwoord, dus als mislukt behandelen.
 export const isPlaceholder = (m) => /^Actie vereist/i.test(m?.t || "");
+
+// Tweede vangnet, voor als Nevobo die tekst verandert: een agenda met precies één event van meer dan 30 dagen. Gemeten 7-11 op 13.836
+// live teambestanden (112.932 events): echte wedstrijden duren max. 2 uur, de regel trof 362/362 nep-programma's en 0 echte.
+const msOf = (s) => Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8), +s.slice(9, 11), +s.slice(11, 13));
+const isLong = (m) => !!m?.e && msOf(m.e) - msOf(m.s) > 30 * 24 * 3600e3;
+export const isPlaceholderProgram = (ms) => Array.isArray(ms) && (ms.some(isPlaceholder) || (ms.length === 1 && isLong(ms[0])));
+export const stripPlaceholders = (ms) => ms.filter((m) => !isPlaceholder(m) && !isLong(m));

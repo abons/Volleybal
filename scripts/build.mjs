@@ -8,7 +8,7 @@
 
 import { mkdir, readFile, writeFile, rm, cp, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { parseIcs, isPlaceholder } from "./ics.mjs";
+import { parseIcs, isPlaceholderProgram, stripPlaceholders } from "./ics.mjs";
 import { decideKeep, stampOf } from "./keep.mjs";
 import { groupTeams } from "./groups.mjs";
 
@@ -26,7 +26,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 let placeholders = 0;
 function programOf(key, ics) {
   const m = ics ? parseIcs(ics) : [];
-  if (!m.some(isPlaceholder)) return m;
+  if (!isPlaceholderProgram(m)) return m;
   if (placeholders++ < 3) console.log(`  nep-programma: ${key}: ${JSON.stringify(ics.slice(0, 700))}`);
   return null;
 }
@@ -36,9 +36,9 @@ const RESTORE = existsSync("scripts/restore.json") ? JSON.parse(await readFile("
 // `restore` markeert dat m uit restore.json komt (geteld in `restored` alleen als het ook gepubliceerd wordt; het veld wordt niet weggeschreven).
 let restored = 0;
 async function withoutPlaceholder(prev, key) {
-  if (!Array.isArray(prev?.m) || !prev.m.some(isPlaceholder)) return prev;
+  if (!isPlaceholderProgram(prev?.m)) return prev;
   const back = Array.isArray(RESTORE[key]);
-  return { ...prev, m: (back ? RESTORE[key] : prev.m).filter((x) => !isPlaceholder(x)), ...(back && { restore: true }) };
+  return { ...prev, m: stripPlaceholders(back ? RESTORE[key] : prev.m), ...(back && { restore: true }) };
 }
 
 async function get(url, accept, tries = 5) {
